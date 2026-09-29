@@ -1,0 +1,12 @@
+name: Feature
+description: A new capability for the site
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: goal
+    attributes: { label: Goal, description: What should be possible afterwards? }
+    validations: { required: true }
+  - type: textarea
+    id: done
+    attributes: { label: Done when, description: How we will know it works. }
+    validations: { required: true }
