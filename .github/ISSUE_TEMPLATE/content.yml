@@ -1,0 +1,26 @@
+name: Content (equipment or exercise)
+description: Add or change a piece of equipment, an exercise or a guide
+labels: ["type:content"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Privacy:** this repository is public. Do **not** attach personal photos, measurements or health details here.
+        Share photos in a private session; only generic descriptions belong in this issue.
+  - type: input
+    id: item
+    attributes: { label: Equipment or exercise (generic name, no brands) }
+    validations: { required: true }
+  - type: checkboxes
+    id: measurements
+    attributes:
+      label: Geometry the figures need (see the spec §5.1)
+      options:
+        - label: Hole numbering (floor to the lowest and highest numbered hole)
+        - label: Lowest and highest bar positions
+        - label: Inner depth and width between the uprights
+        - label: Pull-up bar height and ceiling height above it
+        - label: Bench seat height, backrest length and available angles
+  - type: textarea
+    id: notes
+    attributes: { label: Notes }
