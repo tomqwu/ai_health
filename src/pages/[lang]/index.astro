@@ -1,0 +1,21 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AreaCard from '../../components/AreaCard.astro';
+import { AREAS } from '../../lib/areas';
+import { isLocale, localeStaticPaths, localizedPath, t } from '../../lib/i18n';
+
+export function getStaticPaths() {
+  return localeStaticPaths();
+}
+const { lang } = Astro.params;
+if (!isLocale(lang)) throw new Error(`Unknown locale: ${lang}`);
+---
+<BaseLayout lang={lang}>
+  <section class="hero">
+    <h1>{t(lang, 'home.title')}</h1>
+    <p class="lead">{t(lang, 'home.intro')}</p>
+  </section>
+  <div class="area-grid">
+    {AREAS.map((a) => <AreaCard href={localizedPath(lang, a.path)} title={t(lang, a.titleKey)} summary={t(lang, a.summaryKey)} />)}
+  </div>
+</BaseLayout>

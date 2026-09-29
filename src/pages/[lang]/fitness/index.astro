@@ -1,0 +1,14 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { isLocale, localeStaticPaths, t } from '../../../lib/i18n';
+
+export function getStaticPaths() {
+  return localeStaticPaths();
+}
+const { lang } = Astro.params;
+if (!isLocale(lang)) throw new Error(`Unknown locale: ${lang}`);
+---
+<BaseLayout lang={lang} title={t(lang, 'fitness.title')}>
+  <h1>{t(lang, 'fitness.title')}</h1>
+  <p class="lead">{t(lang, 'fitness.intro')}</p>
+</BaseLayout>

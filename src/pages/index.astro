@@ -1,4 +1,24 @@
 ---
+import { HTML_LANG, LOCALE_LABEL, LOCALES, localizedPath } from '../lib/i18n';
 ---
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8" /><title>Healthy Living</title></head><body><h1>Healthy Living</h1></body></html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Healthy Living · 健康生活</title>
+    <script>
+      import { localizedPath, pickLocale } from '../lib/i18n';
+      location.replace(localizedPath(pickLocale(navigator.languages ?? [navigator.language])));
+    </script>
+  </head>
+  <body>
+    <main>
+      <h1>Healthy Living · 健康生活</h1>
+      <ul>
+        {LOCALES.map((l) => <li><a href={localizedPath(l)} lang={HTML_LANG[l]} hreflang={HTML_LANG[l]}>{LOCALE_LABEL[l]}</a></li>)}
+      </ul>
+    </main>
+  </body>
+</html>
