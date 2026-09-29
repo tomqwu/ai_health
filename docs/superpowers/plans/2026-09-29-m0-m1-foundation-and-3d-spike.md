@@ -71,22 +71,22 @@ No code. Push the approved spec and create the tracking structure so every later
 
 | Task | Issue title | Labels | Milestone | Issue # |
 |---|---|---|---|---|
-| 1 | Scaffold Astro + TypeScript tooling and CI | area:platform, type:feature | M0 Foundation | |
-| 2 | i18n core: locales, dictionaries, localized paths | area:platform, type:feature | M0 Foundation | |
-| 3 | Site shell: area registry, layout, home and fitness pages | area:platform, type:feature | M0 Foundation | |
-| 4 | Safety page and 404 | area:platform, type:content | M0 Foundation | |
-| 5 | End-to-end smoke tests | area:platform, type:feature | M0 Foundation | |
-| 6 | Pages deploy, issue templates, architecture docs | area:platform, type:docs | M0 Foundation | |
-| 7 | Figure math core (vec3, quat) | area:figures, type:feature | M1 3D figure spike | |
-| 8 | Pose core: skeleton, FK, pose builder, hands | area:figures, type:feature | M1 3D figure spike | |
-| 9 | Smith machine geometry | area:figures, type:feature | M1 3D figure spike | |
-| 10 | Smith squat solver and validators | area:figures, type:feature | M1 3D figure spike | |
-| 11 | Human model pipeline (MakeHuman → glTF) | area:figures, type:feature | M1 3D figure spike | |
-| 12 | 3D scene: stage, equipment, human | area:figures, type:feature | M1 3D figure spike | |
-| 13 | Figure pre-render pipeline | area:figures, type:feature | M1 3D figure spike | |
-| 14 | Figure spike page and viewer | area:figures, type:feature | M1 3D figure spike | |
-| 15 | Figure pipeline docs | area:figures, type:docs | M1 3D figure spike | |
-| 16 | Owner review: 3D figure look | area:figures, gate:user-review | M1 3D figure spike | |
+| 1 | Scaffold Astro + TypeScript tooling and CI | area:platform, type:feature | M0 Foundation | #1 |
+| 2 | i18n core: locales, dictionaries, localized paths | area:platform, type:feature | M0 Foundation | #2 |
+| 3 | Site shell: area registry, layout, home and fitness pages | area:platform, type:feature | M0 Foundation | #3 |
+| 4 | Safety page and 404 | area:platform, type:content | M0 Foundation | #4 |
+| 5 | End-to-end smoke tests | area:platform, type:feature | M0 Foundation | #5 |
+| 6 | Pages deploy, issue templates, architecture docs | area:platform, type:docs | M0 Foundation | #6 |
+| 7 | Figure math core (vec3, quat) | area:figures, type:feature | M1 3D figure spike | #7 |
+| 8 | Pose core: skeleton, FK, pose builder, hands | area:figures, type:feature | M1 3D figure spike | #8 |
+| 9 | Smith machine geometry | area:figures, type:feature | M1 3D figure spike | #9 |
+| 10 | Smith squat solver and validators | area:figures, type:feature | M1 3D figure spike | #10 |
+| 11 | Human model pipeline (MakeHuman → glTF) | area:figures, type:feature | M1 3D figure spike | #11 |
+| 12 | 3D scene: stage, equipment, human | area:figures, type:feature | M1 3D figure spike | #12 |
+| 13 | Figure pre-render pipeline | area:figures, type:feature | M1 3D figure spike | #13 |
+| 14 | Figure spike page and viewer | area:figures, type:feature | M1 3D figure spike | #14 |
+| 15 | Figure pipeline docs | area:figures, type:docs | M1 3D figure spike | #15 |
+| 16 | Owner review: 3D figure look | area:figures, gate:user-review | M1 3D figure spike | #16 |
 
 - [ ] **Step 1: Push `main`**
 
