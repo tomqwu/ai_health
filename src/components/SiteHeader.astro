@@ -1,0 +1,26 @@
+---
+import LanguageToggle from './LanguageToggle.astro';
+import { AREAS } from '../lib/areas';
+import { localizedPath, t, type Locale } from '../lib/i18n';
+
+interface Props { lang: Locale }
+const { lang } = Astro.props;
+const here = Astro.url.pathname;
+const links = [
+  { href: localizedPath(lang), label: t(lang, 'nav.home'), exact: true },
+  ...AREAS.map((a) => ({ href: localizedPath(lang, a.path), label: t(lang, a.titleKey), exact: false })),
+  { href: localizedPath(lang, 'safety'), label: t(lang, 'nav.safety'), exact: true },
+];
+const current = (href: string, exact: boolean) => (exact ? here === href : here.startsWith(href));
+---
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="site-header__brand" href={localizedPath(lang)}>{t(lang, 'site.name')}</a>
+    <nav aria-label={t(lang, 'nav.main')}>
+      <ul class="site-nav">
+        {links.map((l) => <li><a href={l.href} aria-current={current(l.href, l.exact) ? 'page' : undefined}>{l.label}</a></li>)}
+      </ul>
+    </nav>
+    <LanguageToggle lang={lang} />
+  </div>
+</header>

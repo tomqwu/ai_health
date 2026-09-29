@@ -1,0 +1,11 @@
+---
+import { localizedPath, t, type Locale } from '../lib/i18n';
+
+interface Props { lang: Locale }
+const { lang } = Astro.props;
+---
+<footer class="site-footer">
+  <div class="container">
+    <p>{t(lang, 'footer.disclaimer')} <a href={localizedPath(lang, 'safety')}>{t(lang, 'footer.safetyLink')}</a></p>
+  </div>
+</footer>
