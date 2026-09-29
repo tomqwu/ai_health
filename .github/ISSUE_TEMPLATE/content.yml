@@ -9,7 +9,7 @@ body:
         Share photos in a private session; only generic descriptions belong in this issue.
   - type: input
     id: item
-    attributes: { label: Equipment or exercise (generic name, no brands) }
+    attributes: { label: "Equipment or exercise (generic name, no brands)" }
     validations: { required: true }
   - type: checkboxes
     id: measurements
