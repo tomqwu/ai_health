@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.astro/
+.cache/
+playwright-report/
+test-results/
+public/figures/
+assets-src/human/build/
+*.blend
+*.blend1
+.DS_Store
