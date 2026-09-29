@@ -1,7 +1,7 @@
 # Healthy-Living Platform — Fitness v1 Design
 
 - **Date:** 2026-09-29
-- **Status:** Approved in brainstorming; pending written-spec review
+- **Status:** Approved (2026-09-29)
 - **Scope:** Platform foundation + Fitness section. Nutrition and daily tracking get their own specs later.
 
 ## 1. Summary
@@ -121,7 +121,7 @@ The YAML below is abbreviated: `…` marks text omitted from the example, not mi
 id: smith-functional-trainer
 kind: station                     # station | bench | free-weight | cardio | accessory
 name: { en: Smith machine + functional trainer, zh: 史密斯机综合训练器 }
-capabilities: [smith-bar, rack-uprights, j-hooks, safety-catches, cable-column, pull-up-bar]
+capabilities: [smith-bar, rack-uprights, j-hooks, spotter-arms, safety-catches, cable-column, pull-up-bar]
 parameters:                       # measured by the user; never invented
   holeNumbering:           { type: holes, how: { en: "If the uprights are numbered: floor to the center of the lowest and highest numbered holes, and their numbers", zh: "…" } }
   smithLowestBarHeightCm:  { type: cm,   how: { en: "Lower the bar onto its bottom stop; measure floor to top of bar", zh: "…" } }
@@ -160,8 +160,8 @@ Rules:
   (first, last, step, unit `lb` or `kg`) and `weights` (a list of owned loads with a unit, e.g. dumbbell pairs).
 
 v1 equipment: `smith-functional-trainer`, `adjustable-bench`, `dumbbells`, `barbell` (with bumper plates),
-`resistance-bands`, `treadmill`, `rowing-machine`, `exercise-bike`, plus the small tools the owner confirms
-(e.g. foam roller, massage ball, ab wheel, exercise ball, balance trainer).
+`resistance-bands`, `treadmill`, `rowing-machine`, `exercise-bike`, `foam-roller`, `massage-ball`, `ab-wheel`,
+`exercise-ball` and `balance-trainer` (half-dome).
 
 ### 5.2 Attachments
 
@@ -546,8 +546,9 @@ and M1. Later plans are written after the M1 gate, because the spike may refine 
 2. **Measurements:** the parameters listed in §5.1 (starting with the hole numbering, lowest Smith bar height,
    pull-up bar height and ceiling above it, inner depth and width) plus bench seat height, backrest length and
    available backrest angles. Any can be marked "not measured yet".
-3. **Which small tools and roller hold-down uses** to include, and whether free-barbell safeties exist (before M5).
-4. **Screening answers** (chat only) before M5 program content is finalized.
+3. **Screening answers** (chat only) before M5 program content is finalized.
+
+Answered 2026-09-29: small tools, roller hold-down uses (all three) and spotter arms for free-barbell work.
 
 ## 18. Definition of done (v1)
 
