@@ -53,6 +53,8 @@ visitor's browser.
 | D6 | Stack | Astro + TypeScript, Preact islands, GitHub Actions → Pages | Static content pages + small interactive tools; build-time content validation; built-in i18n routing |
 | D7 | PDF | Print-optimized route + browser "Save as PDF" | Native CJK font support, crisp output, zero PDF dependencies |
 | D8 | Project tracking | GitHub milestones, labels, issues; one PR per issue | Owner request |
+| D9 | Setup positions | Words on public pages ("chest height"); approximate hole numbers only in personal plans, computed from the user's own measurements | Practical beside the machine without inventing settings |
+| D10 | Cable loads | Shown as the numbers printed on the stack; the cable ratio is optional and never guessed | Plans use RIR, so the ratio isn't needed |
 
 ## 4. Architecture
 
@@ -119,16 +121,22 @@ The YAML below is abbreviated: `…` marks text omitted from the example, not mi
 id: smith-functional-trainer
 kind: station                     # station | bench | free-weight | cardio | accessory
 name: { en: Smith machine + functional trainer, zh: 史密斯机综合训练器 }
-capabilities: [smith-bar, rack-uprights, safety-catches, cable-column]
+capabilities: [smith-bar, rack-uprights, j-hooks, safety-catches, cable-column, pull-up-bar]
 parameters:                       # measured by the user; never invented
+  holeNumbering:           { type: holes, how: { en: "If the uprights are numbered: floor to the center of the lowest and highest numbered holes, and their numbers", zh: "…" } }
   smithLowestBarHeightCm:  { type: cm,   how: { en: "Lower the bar onto its bottom stop; measure floor to top of bar", zh: "…" } }
   smithHighestBarHeightCm: { type: cm,   how: { en: "…", zh: "…" } }
   smithRailAngleDeg:       { type: deg,  how: { en: "0 = vertical rails", zh: "…" } }
   rackInnerDepthCm:        { type: cm,   how: { en: "…", zh: "…" } }
   rackInnerWidthCm:        { type: cm,   how: { en: "…", zh: "…" } }
   rackHeightCm:            { type: cm,   how: { en: "…", zh: "…" } }
+  pullUpBarHeightCm:       { type: cm,   how: { en: "Floor to top of the pull-up bar", zh: "…" } }
   safetyCatchMinHeightCm:  { type: cm,   how: { en: "…", zh: "…" } }
+  cableColumns:            { type: count, how: { en: "Number of independent pulley columns", zh: "…" } }
   pulleyPositions:         { type: enum-set, values: [high, chest, low], how: { en: "…", zh: "…" } }
+  pulleyHoleRange:         { type: holes-range, optional: true, how: { en: "Adjustable carriages: lowest and highest hole the carriage pins into", zh: "…" } }
+  cableStack:              { type: stack, how: { en: "First and last number printed on the stack, the step, and the unit", zh: "…" } }
+  cableRatio:              { type: enum, values: ["1:1", "2:1", "4:1", unknown], optional: true, how: { en: "From the manual; leave unknown if unsure", zh: "…" } }
   benchFitsInsideRack:     { type: bool, how: { en: "Can the bench, backrest included, sit fully between the uprights at every angle you use?", zh: "…" } }
 illustrativeDefaults:             # used only for drawing when unmeasured; always labeled "illustrative"
   smithLowestBarHeightCm: 40
@@ -143,10 +151,17 @@ Rules:
 
 - `parameters` describe what can be measured. Values live only in the user's profile.
 - `illustrativeDefaults` exist so generic pages can draw the equipment. They are never used for feasibility.
-- Pulley positions are plain descriptions (high / chest / low), never numbered settings.
+- Public content describes pulley, J-hook and catch positions in words (high / chest height / low). Hole numbers
+  appear only in a user's personal plan, computed from their own measurements (§7.5).
+- Cable loads are shown as the numbers printed on the stack, in the stack's unit. `cableRatio` is optional and
+  never guessed.
+- Parameter types: `cm`, `deg`, `bool`, `count`, `enum`, `enum-set`, `holes` (first/last hole number and
+  height; linear spacing, validated as increasing), `holes-range` (min/max hole number), `stack`
+  (first, last, step, unit `lb` or `kg`) and `weights` (a list of owned loads with a unit, e.g. dumbbell pairs).
 
-v1 equipment: `smith-functional-trainer`, `adjustable-bench`, `dumbbells`, `barbell`, `resistance-bands`,
-`treadmill`, `rowing-machine`.
+v1 equipment: `smith-functional-trainer`, `adjustable-bench`, `dumbbells`, `barbell` (with bumper plates),
+`resistance-bands`, `treadmill`, `rowing-machine`, `exercise-bike`, plus the small tools the owner confirms
+(e.g. foam roller, massage ball, ab wheel, exercise ball, balance trainer).
 
 ### 5.2 Attachments
 
@@ -157,9 +172,11 @@ fits: [cable-column]
 model3d: rope
 ```
 
-v1 attachments: `rope`, `close-grip-row-handle`, `ankle-strap`. Nothing else is assumed (no single D-handles,
-leg-extension/curl attachment, dip station, landmine, thigh restraint or row footplate unless added as content
-and owned in the profile).
+v1 attachments: `rope`, `close-grip-row-handle`, `single-handle`, `lat-bar`, `ankle-strap`, `row-footplate` and
+`roller-hold-down` (a fixed kneeling pad with rollers). Nothing else is assumed: no leg-extension/curl attachment,
+dip station or landmine unless added as content and owned in the profile. Exercises that use the roller hold-down
+declare how (Nordic curl, sit-up anchor or thigh restraint), and owners exclude any use their attachment doesn't
+support.
 
 ### 5.3 Exercise
 
@@ -319,11 +336,21 @@ then trims sets on priority-2 slots.
 `shortSession(day)` keeps up to three priority-1 slots at 2 sets each with RIR ≥ 3. It is used for poor sleep,
 little time or incomplete recovery.
 
-### 7.5 Starting weight and progression (content + UI copy)
+### 7.5 Personal setup numbers
+
+When a station's `holeNumbering` is measured, the planner converts each exercise's descriptive setup heights into
+the nearest hole number for the user's stature. For example, `pulley: chest` becomes chest height from the pose
+layer's standing skeleton, then the nearest hole, shown as "≈ hole 17 (chest height)". The same applies to J-hooks
+and safety catches. Hole numbers appear only in personal views and the PDF. If the ideal height is outside the
+carriage's `pulleyHoleRange`, the planner shows the nearest reachable hole and flags it.
+
+### 7.6 Starting weight and progression (content + UI copy)
 
 - Week 1 is calibration: choose a load you could lift for the top of the rep range with about 3–4 reps in reserve.
 - Double progression: when every working set reaches the top of the rep range at the target RIR, increase by the
   smallest available increment next session. Otherwise, add reps first.
+- Owned loads come from the profile (dumbbell `weights`, `cableStack` step). When the next available load is more
+  than about 15% heavier, progress first with extra reps, an extra set or a slower lowering phase, then move up.
 - Warm-up sets are light and listed separately from working sets.
 
 ## 8. Figure system (`lib/figure`)
@@ -338,6 +365,8 @@ little time or incomplete recovery.
 - **Solvers:** two-bone IK for arms and legs with pole vectors; a rail constraint that adjusts trunk/hip angles so a
   Smith bar stays on its rail; floor contact for feet.
 - **Range-of-motion limits:** per-joint ranges (e.g. elbow flexion 0–145°).
+- **Hanging exercises** use a bent-knee hang when the bar is below the user's standing overhead reach. The feet must
+  clear the floor in the hang, and the head must clear the ceiling at the top.
 - **Validators** (`error` fails CI, `warn` is reported):
 
 | Check | Severity |
@@ -347,6 +376,7 @@ little time or incomplete recovery.
 | Bone lengths constant across frames | error |
 | Joint angles within ROM limits | error |
 | Head, hands and implements below the ceiling minus margin (profile only) | error |
+| Feet clear the floor in hanging positions | error |
 | Bench does not intersect rack parts; implements do not intersect the frame | error |
 | Body proxies do not interpenetrate equipment except at declared contacts | warn |
 
@@ -511,11 +541,13 @@ and M1. Later plans are written after the M1 gate, because the spike may refine 
 
 ## 17. Inputs needed from the owner
 
-1. **Photos** of the home setup, shared in a private session: front view, side view, and the bench inside the
-   rack. Also close-ups of the lower stop, safety catches, bar hooks, pulley adjustment and each attachment.
-2. **Measurements:** the parameters listed in §5.1 plus bench seat height, backrest length and available backrest
-   angles. Any can be marked "not measured yet".
-3. **Screening answers** (chat only) before M5 program content is finalized.
+1. **Photos** of the home setup (received 2026-09-29 in a private session; used as geometry reference only).
+   Still useful: a side view of the Smith rails and a view of the bench inside the rack.
+2. **Measurements:** the parameters listed in §5.1 (starting with the hole numbering, lowest Smith bar height,
+   pull-up bar height and ceiling above it, inner depth and width) plus bench seat height, backrest length and
+   available backrest angles. Any can be marked "not measured yet".
+3. **Which small tools and roller hold-down uses** to include, and whether free-barbell safeties exist (before M5).
+4. **Screening answers** (chat only) before M5 program content is finalized.
 
 ## 18. Definition of done (v1)
 
