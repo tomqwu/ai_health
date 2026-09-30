@@ -22,27 +22,29 @@ Copied from the spec unless marked *(plan)*. Every task's requirements include t
 - §4.2: "Pages read content through Astro content collections; they never parse YAML themselves." *(plan)* `src/content.config.ts` and `src/catalog.ts` are the only files that import `astro:content`; nothing under `src/lib/**` imports Astro, the DOM or three.js.
 - §5: "All user-facing text is `I18n = { en: string; zh: string }`. The build fails if either language is missing. IDs are kebab-case and unique per collection. All cross-references are checked at build time."
 - §3 D12: "Equipment measurements (2026-09-30): Never required. Plans and guides describe general movements and setups for each device type; geometry checks use typical (illustrative) dimensions, and a user can optionally enter their own. Hole numbers (§7.5) are dropped from v1."
-- §5.1: "`parameters` describe what can be measured. Values live only in the user's profile." *(plan)* §5.1's "`illustrativeDefaults` … are never used for feasibility" is superseded by D12 and §7.1: they are the typical dimensions the engine uses for every parameter the user has not measured.
-- §3 D9: "Words everywhere ("chest height"); no hole numbers in v1 (see D12)". §5.1: "Cable loads are shown as the numbers printed on the stack, in the stack's unit. `cableRatio` is optional and never guessed."
+- §5.1: "`parameters` describe what can be measured. Values live only in the user's profile, and none is ever required (D12): nothing prompts for them." "`illustrativeDefaults` are the equipment's typical values (D12). Generic pages draw them, labeled "illustrative", and feasibility (§7.1) uses them for every parameter the user has not measured. The build fails if a parameter that a geometry check reads (`smithLowestBarHeightCm`, `smithHighestBarHeightCm`, `pullUpBarHeightCm`, `benchFitsInsideRack`) has no illustrative default."
+- §5.1: "Smith bar heights (the stops and every bar height the engine compares with them) are measured from the floor to the centre of the bar, the same datum as the geometry layer."
+- §5.1: "Pulley, J-hook and catch positions are described in words (high / chest height / low), in public content and in personal plans alike. There are no hole numbers in v1 (D9, D12)." "Cable loads are shown as the numbers printed on the stack, in the stack's unit. `cableRatio` is optional and never guessed."
 - §5.3: "Cardio-machine sessions (treadmill, rower) may omit `figure`; every strength, core and mobility exercise has one."
 - §5.5: "`supersetWith` is a zero-based slot index on the same day. The engine keeps the pairing only when both picks share a station; otherwise the two slots run as straight sets." "The full-body day is volume-capped (at most 10 working sets, all at RIR ≥ 2)."
 - §9.1: "optional stature, ceiling height and limitations. No equipment measurements are asked for (D12)." *(plan)* The profile keeps `equipment[].params` as optional overrides of the typical dimensions; nothing in M2 prompts for them.
 - §6: "Stored under `localStorage` key `aih.profile`. Every read goes through the Zod schema. Every schema change bumps `version` and adds a migration." "Export produces a JSON file; import validates before overwriting anything." "No age, weight, name or free-text health notes are collected in v1."
-- §7.1 unknown inputs (D12): "Unknown stature → pose at a typical adult stature (175 cm); figures and checks say "typical height"." "Unknown ceiling height → assume a 240 cm ceiling. Exercises whose envelope plus margin exceeds it stay plannable but carry a localized "check overhead clearance" note." "An unmeasured equipment parameter → the equipment's `illustrativeDefaults` are used. `needs-info` is reserved for missing inputs that cannot be defaulted (none in v1)." "`limitations` never change feasibility. They affect ranking and add safety notes." *(plan)* v1 has no input that cannot be defaulted, so the engine has no `needs-info` status (YAGNI): `checkFeasibility` returns `feasible | infeasible`, and spec §7.2's "`needs-info` candidates are listed separately" does not apply. A later version that adds such an input adds the status back.
+- §7.1 unknown inputs (D12): "Unknown stature → pose at a typical adult stature (175 cm); figures and checks say "typical height"." "Unknown ceiling height → assume a 240 cm ceiling. Exercises whose envelope plus margin exceeds it stay plannable but carry a localized "check overhead clearance" note." "An unmeasured equipment parameter → the equipment's `illustrativeDefaults` are used; the build guarantees one for every parameter a geometry check reads (§5.1)." "Every input can be defaulted, so there is no "needs info" status in v1." "`limitations` never change feasibility. They affect ranking and add safety notes." `checkFeasibility(exercise, profile, catalog) → { status, reasons[], notes[] }` with status `feasible | infeasible`.
+- §7.2: "A pick carries its feasibility `notes` before any limitation safety notes." "The `Week` also lists its `assumptions`: localized messages saying which typical values stood in for unknown inputs (a typical height, an assumed ceiling)".
 - §7.2 ranking: "+3 same station as the previous pick of the day; +2 for each declared limitation whose joint has `low` stress; −3 for each declared limitation whose joint has `high` stress; −2 already used earlier in the week for another slot", "deterministic tie-break by id".
 - §7.3: "`minutes = warm-up + Σ sets × (reps × repSeconds + restSec) + transitions`". "A transition (`setupSeconds` of the incoming exercise) is charged whenever `setupState` changes: station, bench angle or pulley height." Fit to time "removes priority-3 slots first, then trims sets on priority-2 slots."
 - §7.4: "`shortSession(day)` keeps up to three priority-1 slots at 2 sets each with RIR ≥ 3."
 - §10: "UI strings live in typed dictionaries (`lib/i18n/en.ts`, `zh.ts`); a missing key is a type error." "Content fields are `I18n` objects checked by Zod." "Units are converted for display only; profiles and content are stored in metric."
 - §11: "Saved profile fails validation → Raw copy kept under `aih.profile.backup.<timestamp>`"; "`localStorage` unavailable → Planner runs in memory"; "Invalid import file → Field-level errors in the current language; nothing is overwritten"; "Older profile version → Migrated on load; the migration is covered by tests".
 - §13: "No personal data in the repository, issues, pull requests, commit messages, test fixtures or build logs. Fixtures use synthetic profiles." "The site makes no network requests with profile data." *(plan)* No equipment brand or model names anywhere. Every number in fixtures and content is invented or illustrative; never copy a measurement the owner shared in chat.
-- §14 testing: unit tests are colocated with the code they test; Engine: "Feasibility tri-state for every check, ranking, overrides, unfillable slots, time estimates, fit-to-time, short session"; Profile: "Schema, migrations, import error messages, backup-on-corruption"; Content integrity: "Every reference resolves; every template pattern has at least one exercise". *(plan)* Without `needs-info` (D12), "tri-state" means feasible and infeasible for every check, plus the typical-value fallback for every unknown input.
+- §14 testing: unit tests are colocated with the code they test; Engine: "Feasibility (feasible / infeasible, typical-value fallbacks) for every check, ranking, overrides, unfillable slots, time estimates, fit-to-time, short session"; Profile: "Schema, migrations, import error messages, backup-on-corruption"; Content integrity: "Every reference resolves; every template pattern has at least one exercise".
 - *(plan)* Out of scope: pages, wizard, planner UI, PDF and §7.6 progression (M4); the generalized pose library, other equipment builders and the figure sweep (M3); v1 exercise, template and guide content (M5). §7.5 hole numbers are not in v1 at all (D12), so M2 has no hole-numbering parameter types or parameters.
 - *(plan)* Test ceilings: a room that is "tall enough" is a standard 8 ft ceiling, `8 * 30.48` = 243.84 cm (named `EIGHT_FT_CEILING_CM` in the engine fixtures, as in the pose tests); only deliberately low ceilings use other values.
 - Git (as in M0/M1): one branch + PR per issue (`m2/<issue#>-<slug>`), PR body contains `Closes #N`, squash-merge when CI is green. Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; PR bodies end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. Wait for CI with the app's PR tools, not by polling `gh`.
 
 ## Owner decisions (2026-09-30)
 
-The owner approved the draft's 16 open questions as proposed, except where spec decision D12 (committed to the spec as 9bc5df7) supersedes them. Tasks refer to these by number.
+The owner approved the draft's 16 open questions as proposed, except where spec decision D12 (committed to the spec as 9bc5df7; §5.1, §7.1, §7.2 and §7.5 aligned with it in 3f285ef) supersedes them. Tasks refer to these by number.
 
 1. **Profile parameter values** use the §5.1 parameter value types (`ParamValue`), not `number | boolean | string[]`.
 2. **Figures:** exercises reference a figure by id, `figure: { spec: <id> }`, until M3 settles the generalized pose format.
@@ -68,6 +70,7 @@ The owner approved the draft's 16 open questions as proposed, except where spec 
 - `buildWeek` returns `Week.assumptions`: localizable messages saying the plan uses a typical height or an assumed ceiling (spec §7.1: checks say "typical height").
 - No hole numbers: the `holes` and `holes-range` parameter types and the `holeNumbering` and `pulleyHoleRange` parameters are gone. Because nothing is required, the parameter definition's `optional` flag is gone too.
 - The profile keeps optional `statureCm`, `room.ceilingHeightCm` and `limitations`; `equipment[].params` are optional overrides that nothing prompts for.
+- One datum for Smith bar heights: floor to the **centre** of the bar, as in the geometry layer's `SmithParams.lowestBarHeightCm` / `highestBarHeightCm`. The stop parameters' `how` text (EN + 中文), their typical values (40 / 180 cm, equal to `ILLUSTRATIVE_SMITH`), `GEOMETRY_PARAMS` and `ProbeResult.barCentersCm` all use it, so the engine compares like with like.
 
 **Pose layer as merged in #45:** Task 9 poses each Smith-squat frame with `checkFigureFrame(sk, spec, frame, { statureCm, smith: ILLUSTRATIVE_SMITH })`, the single helper that solves and validates from one set of inputs, instead of calling `solveSmithSquat` and `validateSmithSquat` separately. Its signed ROM findings, including the documented magnitude-only elbow exception for the Smith squat, become the engine's ROM check; its anchor, feet-flat, bar-on-rail and bone-length findings become the pose check. Bar travel and ceiling are checked by the engine against the profile's or the typical values, with localized messages.
 
@@ -388,6 +391,10 @@ export type LoadUnit = (typeof LOAD_UNITS)[number];
  * Equipment parameters the engine's geometry checks read (spec §7.1 check 4). D12: when the user has not
  * measured one, the engine uses the equipment's illustrative default, so the catalog requires a default
  * for each of these on every equipment that defines it.
+ *
+ * Datum: the Smith bar heights (`smithLowestBarHeightCm`, `smithHighestBarHeightCm`) are floor to the centre
+ * of the bar, the same datum as `SmithParams.lowestBarHeightCm` / `highestBarHeightCm` in the geometry layer
+ * and as the bar heights the engine's probes report.
  */
 export const GEOMETRY_PARAMS = ['smithLowestBarHeightCm', 'smithHighestBarHeightCm', 'pullUpBarHeightCm', 'benchFitsInsideRack'] as const;
 export type GeometryParam = (typeof GEOMETRY_PARAMS)[number];
@@ -1068,7 +1075,10 @@ export const EquipmentSchema = z.strictObject({
   name: I18nTextSchema,
   capabilities: z.array(IdSchema).min(1),
   parameters: z.record(ParamNameSchema, ParamDefSchema).default({}),
-  /** Typical dimensions (D12): drawn on generic pages, and used by the engine for every unmeasured parameter. */
+  /**
+   * Typical dimensions (D12): drawn on generic pages, and used by the engine for every unmeasured parameter.
+   * Lengths are in cm; Smith bar heights are floor to the centre of the bar (see `GEOMETRY_PARAMS`).
+   */
   illustrativeDefaults: z.record(ParamNameSchema, ParamValueSchema).default({}),
   /** Parametric builder id in lib/figure (checked from M3). */
   model3d: IdSchema.optional(),
@@ -1549,7 +1559,7 @@ When CI is green: `gh pr merge --squash --delete-branch && git checkout main && 
 
 Wires the schemas into Astro content collections, adds the first generic content, and makes `npm run build` fail on any content error (spec §14: "Build (Zod + cross-reference checks)").
 
-Seed content is deliberately small (owner decision 14): the three equipment classes the engine tests need, all seven v1 attachments and the M1 exercise. Illustrative defaults describe the same typical machine as `ILLUSTRATIVE_SMITH` in `src/lib/figure/geometry/smith.ts` (what the figures draw), and every parameter in `GEOMETRY_PARAMS` has one, because the engine uses them whenever the user has not measured (D12). Setups are described in words only: there is no `holeNumbering` or `pulleyHoleRange` parameter (D12). The `templates` collection stays empty until M5, so the build logs two expected warnings (`No files found matching "*.yaml" in directory "src/content/templates"` and `The collection "templates" does not exist or is empty`).
+Seed content is deliberately small (owner decision 14): the three equipment classes the engine tests need, all seven v1 attachments and the M1 exercise. Illustrative defaults describe the same typical machine as `ILLUSTRATIVE_SMITH` in `src/lib/figure/geometry/smith.ts` (what the figures draw); the Smith stops use its datum, floor to the centre of the bar, so the typical 40 / 180 cm equal `ILLUSTRATIVE_SMITH.lowestBarHeightCm` / `highestBarHeightCm`. Every parameter in `GEOMETRY_PARAMS` has one, because the engine uses them whenever the user has not measured (D12). Setups are described in words only: there is no `holeNumbering` or `pulleyHoleRange` parameter (D12). The `templates` collection stays empty until M5, so the build logs two expected warnings (`No files found matching "*.yaml" in directory "src/content/templates"` and `The collection "templates" does not exist or is empty`).
 
 **Files:**
 - Create: `src/content.config.ts`, `src/catalog.ts`
@@ -1637,14 +1647,14 @@ parameters:
     type: cm
     label: { en: Lowest Smith bar height, zh: 史密斯杠最低高度 }
     how:
-      en: "Lower the bar onto its bottom stop; measure floor to top of bar"
-      zh: "把杠铃放到最低限位上，量出地面到杠铃顶部的高度"
+      en: "Lower the bar onto its bottom stop; measure floor to the centre of the bar"
+      zh: "把杠铃放到最低限位上，量出地面到杠铃中心的高度"
   smithHighestBarHeightCm:
     type: cm
     label: { en: Highest Smith bar height, zh: 史密斯杠最高高度 }
     how:
-      en: "Raise the bar to the top of its travel; measure floor to top of bar"
-      zh: "把杠铃升到行程最高处，量出地面到杠铃顶部的高度"
+      en: "Raise the bar to the top of its travel; measure floor to the centre of the bar"
+      zh: "把杠铃升到行程最高处，量出地面到杠铃中心的高度"
   smithRailAngleDeg:
     type: deg
     label: { en: Smith rail angle, zh: 史密斯导轨角度 }
@@ -1714,7 +1724,8 @@ parameters:
       en: "Can the bench, backrest included, sit fully between the uprights at every angle you use?"
       zh: "训练凳（包括靠背）在你使用的每个角度下，能否完全放在立柱之间？"
 # Typical dimensions (D12): drawn on generic pages (labeled "illustrative") and used by the geometry
-# checks for anything the user has not measured. Not anyone's machine.
+# checks for anything the user has not measured. Not anyone's machine. Smith bar heights are bar-centre
+# heights, equal to ILLUSTRATIVE_SMITH.lowestBarHeightCm / highestBarHeightCm.
 illustrativeDefaults:
   smithLowestBarHeightCm: 40
   smithHighestBarHeightCm: 180
@@ -2601,7 +2612,7 @@ This task also adds the shared engine types, parameter lookup and the synthetic 
 - Produces:
   - `types.ts`: `FeasibilityStatus = 'feasible' | 'infeasible'`, `CheckId`, `Unlock` (`equipment` | `attachment` | `exclusion`), `Reason = { check; message: Message; unlock? }`, `Feasibility = { status; reasons; notes: Message[] }`.
   - `params.ts`: `paramValue(profile, catalog, name: GeometryParam): ParamValue | undefined` (the user's valid measurement, else the illustrative default), `numberParam(…)`, `boolParam(…)`, `ownedCapabilities(profile, catalog)`, `providersOf(catalog, capabilities)`.
-  - `geometry.ts`: `TYPICAL_STATURE_CM = 175`, `ASSUMED_CEILING_CM = 240`, `OVERHEAD_REACH_RATIO = 1.33`, `HEAD_ABOVE_BAR_RATIO = 0.13`, `ProbeInput = { statureCm }`, `ProbeResult = { topCm; barTopsCm?; rom; posing }`, `GeometryProbe`, `ProbeRegistry` (keyed by `exercise.figure.spec`), `GeometryOutcome = { reasons; notes }`, `benchInRack(ex)`, `statureFor(profile)`, `assumptions(profile): Message[]`, `checkGeometry(ex, profile, catalog, probes)`.
+  - `geometry.ts`: `TYPICAL_STATURE_CM = 175`, `ASSUMED_CEILING_CM = 240`, `OVERHEAD_REACH_RATIO = 1.33`, `HEAD_ABOVE_BAR_RATIO = 0.13`, `ProbeInput = { statureCm }`, `ProbeResult = { topCm; barCentersCm?; rom; posing }`, `GeometryProbe`, `ProbeRegistry` (keyed by `exercise.figure.spec`), `GeometryOutcome = { reasons; notes }`, `benchInRack(ex)`, `statureFor(profile)`, `assumptions(profile): Message[]`, `checkGeometry(ex, profile, catalog, probes)`.
   - `testing/fixtures.ts`: `EIGHT_FT_CEILING_CM` (243.84), `SYN_EQUIPMENT`, `SYN_ATTACHMENTS`, `syntheticExercise(over)`, `SYN_EXERCISES` (14 exercises), `SYN_TEMPLATE` (`syn-3day`: mon push, tue legs, wed cardio, thu full body, sun rest), `syntheticCatalog(over?)`, and profiles `fullHomeGym()`, `dumbbellsOnly()`, `nothingMeasured()`, `lowCeiling()`.
 
 - [ ] **Step 1: Branch**
@@ -2897,7 +2908,7 @@ const PASS = { reasons: [], notes: [] };
 /** A fixed pose result, independent of the pose layer. */
 const fixed = (over: Partial<ReturnType<GeometryProbe>> = {}): GeometryProbe => () => ({
   topCm: 180,
-  barTopsCm: [90, 150],
+  barCentersCm: [90, 150],
   rom: [],
   posing: [],
   ...over,
@@ -3015,14 +3026,14 @@ describe('checkGeometry', () => {
       ]);
     });
     it('uses the typical stops when none are measured', () => {
-      const o = checkGeometry(ex('smith-squat'), nothingMeasured(), catalog, smithProbes(fixed({ barTopsCm: [30, 185] })));
+      const o = checkGeometry(ex('smith-squat'), nothingMeasured(), catalog, smithProbes(fixed({ barCentersCm: [30, 185] })));
       expect(o.reasons).toEqual([
         { check: 'bar-travel', message: { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: 30 }, stop: { lengthCm: 40 } } } },
         { check: 'bar-travel', message: { key: 'engine.reason.barAboveStop', params: { height: { lengthCm: 185 }, stop: { lengthCm: 180 } } } },
       ]);
     });
     it('prefers a measured stop, and treats a stored value of the wrong type as unmeasured', () => {
-      const probes = smithProbes(fixed({ barTopsCm: [42, 150] }));
+      const probes = smithProbes(fixed({ barCentersCm: [42, 150] }));
       // measured lowest stop 45 cm
       expect(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, probes).reasons.map((r) => r.message)).toEqual([
         { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: 42 }, stop: { lengthCm: 45 } } },
@@ -3086,8 +3097,11 @@ export interface ProbeInput {
 export interface ProbeResult {
   /** Highest point of the body and implements over all frames (cm above the floor). */
   topCm: number;
-  /** Top of the Smith bar in each frame (cm), for exercises that move a Smith bar. */
-  barTopsCm?: readonly number[];
+  /**
+   * Height of the Smith bar's centre in each frame (cm above the floor), for exercises that move a Smith bar.
+   * Same datum as the stop parameters and `SmithParams`: floor to the centre of the bar.
+   */
+  barCentersCm?: readonly number[];
   /** Range-of-motion findings in any frame (pose-layer diagnostics); empty when every joint is within its limits. */
   rom: readonly string[];
   /** Other pose-layer findings (hands or feet off target, bar off the rail, bone lengths); empty when posed cleanly. */
@@ -3151,7 +3165,7 @@ export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, 
     }
     if (probed.posing.length > 0) return poseFailed;
   }
-  if (movesSmithBar && !probed?.barTopsCm?.length) {
+  if (movesSmithBar && !probed?.barCentersCm?.length) {
     return { reasons: [{ check: 'bar-travel', message: { key: 'engine.reason.noGeometryModel' } }], notes };
   }
 
@@ -3170,10 +3184,10 @@ export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, 
     });
   }
 
-  // Smith bar travel versus the stops (measured, else typical).
-  if (movesSmithBar && probed?.barTopsCm) {
-    const low = Math.min(...probed.barTopsCm);
-    const high = Math.max(...probed.barTopsCm);
+  // Smith bar travel versus the stops (measured, else typical); both are bar-centre heights.
+  if (movesSmithBar && probed?.barCentersCm) {
+    const low = Math.min(...probed.barCentersCm);
+    const high = Math.max(...probed.barCentersCm);
     const lowestCm = numberParam(profile, catalog, 'smithLowestBarHeightCm');
     const highestCm = numberParam(profile, catalog, 'smithHighestBarHeightCm');
     if (lowestCm !== undefined && low < lowestCm) {
@@ -3224,14 +3238,14 @@ When CI is green: `gh pr merge --squash --delete-branch && git checkout main && 
 
 ### Task 9: Smith squat geometry probe
 
-Connects the engine to the pose layer as merged in #45. For each Smith-squat frame the probe calls `checkFigureFrame(sk, spec, frame, { statureCm, smith: ILLUSTRATIVE_SMITH })`, the helper that solves and validates a frame from one set of inputs, so the solver's rail and the validator's machine cannot disagree. The figure is posed on the typical machine (D12); only the rail position affects the pose. The probe reports the head/plate envelope and the bar-top heights, passes the validator's signed ROM findings through (including the documented magnitude-only elbow exception for the Smith squat), and reports its anchor, feet-flat, bar-on-rail and bone-length findings as pose problems. Bar travel and ceiling are left to the engine, which checks them against the profile's or the typical values with localized messages.
+Connects the engine to the pose layer as merged in #45. For each Smith-squat frame the probe calls `checkFigureFrame(sk, spec, frame, { statureCm, smith: ILLUSTRATIVE_SMITH })`, the helper that solves and validates a frame from one set of inputs, so the solver's rail and the validator's machine cannot disagree. The figure is posed on the typical machine (D12); only the rail position affects the pose. The probe reports the head/plate envelope and the bar heights, floor to the centre of the bar (the datum of `SmithParams` and of the stop parameters), passes the validator's signed ROM findings through (including the documented magnitude-only elbow exception for the Smith squat), and reports its anchor, feet-flat, bar-on-rail and bone-length findings as pose problems. Bar travel and ceiling are left to the engine, which checks them against the profile's or the typical values with localized messages.
 
 **Files:**
 - Create: `src/lib/engine/probes.ts`
 - Test: `src/lib/engine/probes.test.ts`
 
 **Interfaces:**
-- Consumes: pose layer (#45) `checkFigureFrame(sk, spec, frame, ctx): { solution, findings }`, `Finding`, `carriedBarCenter(sk, sol, barRestOffsetCm)`, `headTop(sk, world, scaleFactor)`, `REAL_SKELETON`, `syntheticSkeleton`, `SkeletonDef`, `SmithSquatSpec`, `SMITH_SQUAT`, `ILLUSTRATIVE_SMITH` (`barRadiusCm`, `plateDiameterCm`); Task 8 `GeometryProbe`, `ProbeRegistry`, `checkGeometry`, fixtures.
+- Consumes: pose layer (#45) `checkFigureFrame(sk, spec, frame, ctx): { solution, findings }`, `Finding`, `carriedBarCenter(sk, sol, barRestOffsetCm)`, `headTop(sk, world, scaleFactor)`, `REAL_SKELETON`, `syntheticSkeleton`, `SkeletonDef`, `SmithSquatSpec`, `SMITH_SQUAT`, `ILLUSTRATIVE_SMITH` (`plateDiameterCm`); Task 8 `GeometryProbe`, `ProbeRegistry`, `checkGeometry`, fixtures.
 - Produces: `smithSquatProbe(sk, spec): GeometryProbe`, `DEFAULT_PROBES: ProbeRegistry` (`{ 'smith-squat': … }`).
 
 - [ ] **Step 1: Branch**
@@ -3245,6 +3259,8 @@ git checkout main && git pull && git checkout -b m2/<issue>-smith-probe
 ```ts
 import { describe, expect, it } from 'vitest';
 import { SMITH_SQUAT } from '../figure/fixtures/smith-squat';
+import { ILLUSTRATIVE_SMITH } from '../figure/geometry/smith';
+import { checkFigureFrame } from '../figure/pose/checkFigureFrame';
 import { syntheticSkeleton } from '../figure/pose/synthetic';
 import type { Profile } from '../profile/schema';
 import { checkGeometry } from './geometry';
@@ -3261,7 +3277,7 @@ describe('smithSquatProbe', () => {
       const r = probe({ statureCm });
       expect(r.rom).toEqual([]);
       expect(r.posing).toEqual([]);
-      expect(r.barTopsCm).toHaveLength(3);
+      expect(r.barCentersCm).toHaveLength(3);
       // The head is the highest point; plates never rise above it in a back squat.
       expect(r.topCm).toBeGreaterThan(statureCm * 0.95);
       expect(r.topCm).toBeLessThan(statureCm + 5);
@@ -3269,11 +3285,20 @@ describe('smithSquatProbe', () => {
   }
 
   it('lowers the bar at the bottom frame and scales with stature', () => {
-    const short = probes.real({ statureCm: 150 }).barTopsCm!;
-    const tall = probes.real({ statureCm: 200 }).barTopsCm!;
+    const short = probes.real({ statureCm: 150 }).barCentersCm!;
+    const tall = probes.real({ statureCm: 200 }).barCentersCm!;
     expect(short[1]!).toBeLessThan(short[0]!);
     expect(tall[0]!).toBeGreaterThan(short[0]!);
     expect(tall[1]!).toBeGreaterThan(short[1]!);
+  });
+
+  it('reports bar-centre heights, the datum of the stops and SmithParams', () => {
+    const sk = syntheticSkeleton({ randomRestSeed: 5 });
+    const r = smithSquatProbe(sk, SMITH_SQUAT)({ statureCm: 175 });
+    SMITH_SQUAT.frames.forEach((frame, i) => {
+      const { solution } = checkFigureFrame(sk, SMITH_SQUAT, frame, { statureCm: 175, smith: ILLUSTRATIVE_SMITH });
+      expect(r.barCentersCm![i]).toBeCloseTo(solution.barCenter[1], 6);
+    });
   });
 
   it('passes the pose layer ROM findings through, per frame', () => {
@@ -3335,7 +3360,7 @@ const ENGINE_CHECKED: ReadonlySet<Finding['check']> = new Set(['bar-travel', 'ce
 
 /**
  * Poses every Smith-squat frame at the stature with `checkFigureFrame` on the typical machine (D12) and
- * reports the envelope (head or plates), the bar-top heights (stops are measured to the top of the bar),
+ * reports the envelope (head or plates), the bar-centre heights (the datum of the stops and `SmithParams`),
  * the ROM findings (signed limits; this solver's elbows are checked by magnitude only, see
  * `validateSmithSquat`) and every other pose finding. Throws when a frame cannot be solved.
  */
@@ -3343,20 +3368,20 @@ export function smithSquatProbe(sk: SkeletonDef, spec: SmithSquatSpec): Geometry
   const smith = ILLUSTRATIVE_SMITH;
   return ({ statureCm }) => {
     let topCm = 0;
-    const barTopsCm: number[] = [];
+    const barCentersCm: number[] = [];
     const rom: string[] = [];
     const posing: string[] = [];
     for (const frame of spec.frames) {
       const { solution, findings } = checkFigureFrame(sk, spec, frame, { statureCm, smith });
       const barY = carriedBarCenter(sk, solution, spec.barRestOffsetCm)[1];
-      barTopsCm.push(barY + smith.barRadiusCm);
+      barCentersCm.push(barY);
       topCm = Math.max(topCm, headTop(sk, solution.world, solution.scaleFactor)[1], barY + smith.plateDiameterCm / 2);
       for (const f of findings) {
         if (f.check === 'rom') rom.push(`${frame.id}: ${f.message}`);
         else if (!ENGINE_CHECKED.has(f.check)) posing.push(`${frame.id}: ${f.message}`);
       }
     }
-    return { topCm, barTopsCm, rom, posing };
+    return { topCm, barCentersCm, rom, posing };
   };
 }
 
@@ -3372,7 +3397,7 @@ export const DEFAULT_PROBES: ProbeRegistry = {
 - [ ] **Step 5: Run the tests and the checks**
 
 Run: `npx vitest run src/lib/engine src/lib/figure tests/assets && npm run lint && npm run check`
-Expected: `probes.test.ts` 16 passed; the M1 figure and asset tests still pass; 0 lint and type errors.
+Expected: `probes.test.ts` 17 passed; the M1 figure and asset tests still pass; 0 lint and type errors.
 
 - [ ] **Step 6: Commit, open the PR, merge when CI is green**
 
@@ -3385,7 +3410,7 @@ gh pr create --repo tomqwu/ai_health --title "Smith squat geometry probe" \
 ```
 When CI is green: `gh pr merge --squash --delete-branch && git checkout main && git pull`.
 
-**Done when:** the probe poses 150–200 cm statures on both skeletons with no ROM or pose findings, passes pose-layer ROM findings through, and a lowest stop above the squat's bottom makes the exercise infeasible.
+**Done when:** the probe poses 150–200 cm statures on both skeletons with no ROM or pose findings, reports bar-centre heights, passes pose-layer ROM findings through, and a lowest stop above the squat's bottom makes the exercise infeasible.
 
 ---
 
@@ -3418,7 +3443,7 @@ import { dumbbellsOnly, fullHomeGym, lowCeiling, nothingMeasured, syntheticCatal
 
 const catalog = syntheticCatalog();
 const ex = (id: string) => catalog.exercises.get(id)!;
-const probe: GeometryProbe = () => ({ topCm: 180, barTopsCm: [90, 150], rom: [], posing: [] });
+const probe: GeometryProbe = () => ({ topCm: 180, barCentersCm: [90, 150], rom: [], posing: [] });
 const opts = { probes: { 'smith-squat': probe, 'smith-bench-press': probe } };
 const check = (id: string, p: Profile) => checkFeasibility(ex(id), p, catalog, opts);
 
@@ -3945,7 +3970,7 @@ import { fullHomeGym, nothingMeasured, SYN_TEMPLATE, syntheticCatalog, synthetic
 
 const catalog = syntheticCatalog();
 const ex = (id: string) => catalog.exercises.get(id)!;
-const benchProbe: GeometryProbe = () => ({ topCm: 150, barTopsCm: [95, 140], rom: [], posing: [] });
+const benchProbe: GeometryProbe = () => ({ topCm: 150, barCentersCm: [95, 140], rom: [], posing: [] });
 const opts = { probes: { ...DEFAULT_PROBES, 'smith-bench-press': benchProbe } };
 const build = (p: Profile, tpl = SYN_TEMPLATE) => buildWeek(tpl, p, catalog, opts);
 const picks = (p: Profile, tpl = SYN_TEMPLATE) =>
@@ -4638,7 +4663,9 @@ references, so `npm run build` fails on any mistake. The design spec (§5) is th
 `id`, `kind` (station | bench | free-weight | cardio | accessory), `name`, `capabilities` (what exercises can
 require), and `parameters`: what a user can measure. Each parameter has a `type` (cm, deg, bool, count,
 enum, enum-set, stack, weights), a `label` and `how` to measure it; `enum` and `enum-set` also list
-`values`. No parameter is ever required: users may enter their own values, and nothing asks them to.
+`values`. No parameter is ever required: users may enter their own values, and nothing asks them to. Smith
+bar heights (stops, typical values) are measured from the floor to the centre of the bar, the geometry
+layer's datum.
 
 ## Attachments (`src/content/attachments/<id>.yaml`)
 
@@ -4688,7 +4715,7 @@ Add a section before "## Figures":
 - [ ] **Step 5: Full verification**
 
 Run: `npm test && npm run lint && npm run check && npm run build`
-Expected: every test file passes (M2 adds 16 test files and 184 tests to the suite); 0 lint and type errors; the build completes with only the two expected `templates` warnings.
+Expected: every test file passes (M2 adds 16 test files and 185 tests to the suite); 0 lint and type errors; the build completes with only the two expected `templates` warnings.
 
 - [ ] **Step 6: Privacy check**
 
@@ -4730,11 +4757,12 @@ Close the milestone (`gh api -X PATCH repos/tomqwu/ai_health/milestones/$M -f st
 - §10 i18n and units: Task 2 (dictionaries, `Message`, units); Zod `I18n` checks: Tasks 1, 3.
 - §11 errors: corrupt profile backup, storage unavailable, invalid import, unfillable slot, over budget, dropped override, older version: Tasks 6, 7, 11, 12.
 - §12 safety: limitations add notes and never change feasibility (Tasks 10, 12); no bypassed stops (bar travel against the measured or typical stops, Task 8); overhead clearance is flagged under an assumed ceiling (Tasks 8, 12).
+- §5.1 bar-height datum (floor to the bar centre): content `how` text and typical values (Task 5), `GEOMETRY_PARAMS` and `EquipmentSchema` JSDoc (Tasks 1, 3), `ProbeResult.barCentersCm` and the stop comparisons (Tasks 8, 9).
 - §13 privacy: synthetic fixtures only, no brands, test ceilings are a standard 8 ft (243.84 cm) or deliberately low, profile never leaves the browser (no network code in M2).
 - §14 testing rows for Engine, Profile, i18n and Content integrity: Tasks 2–14; M2 exit: Task 14.
 
 **Placeholder scan.** Every code step contains the complete file or the exact lines to add. `<issue>` is the number from the Task 0 table, filled in at execution time. No code in the plan uses a `needs-info` status, `MissingInfo`, hole types, an `optional` parameter flag or the pre-#45 pose API (`romExceeded`, numeric `ROM_LIMITS`, `jointAngles(world, side)`, separate `solveSmithSquat` + `validateSmithSquat` calls).
 
-**Type consistency.** `ProbeResult` (`topCm`, `barTopsCm`, `rom`, `posing`; Tasks 8–10, 12), `Feasibility` (`status`, `reasons`, `notes`; Tasks 8, 10, 12, 14), `Week.assumptions` (Tasks 11, 12, 14), `GeometryParam` (Tasks 1, 4, 8), `SlotPlan.supersetWith` as a template index (Tasks 11–13), `EngineOptions.probes` (Tasks 10, 12), `Message`/`MessageKey` (Tasks 2, 6, 8–12) and `ParamValue` (Tasks 1, 6, 8) are used with the same names and shapes throughout.
+**Type consistency.** `ProbeResult` (`topCm`, `barCentersCm`, `rom`, `posing`; Tasks 8–10, 12), `Feasibility` (`status`, `reasons`, `notes`; Tasks 8, 10, 12, 14), `Week.assumptions` (Tasks 11, 12, 14), `GeometryParam` (Tasks 1, 4, 8), `SlotPlan.supersetWith` as a template index (Tasks 11–13), `EngineOptions.probes` (Tasks 10, 12), `Message`/`MessageKey` (Tasks 2, 6, 8–12) and `ParamValue` (Tasks 1, 6, 8) are used with the same names and shapes throughout.
 
-**Dry run (2026-09-30).** Every code block of this plan was extracted into a scratch copy of `docs/m2-plan` (rebased on `main` after #45), task by task and as a whole. The full suite passed (34 files, 385 tests: M2 adds 16 files and 184 tests), `eslint` and `astro check` reported 0 problems, `astro build` completed with only the two expected `templates` warnings, and the three Task 5 "rejects bad content" builds failed with the expected messages.
+**Dry run (2026-09-30).** Every code block of this plan was extracted into a scratch copy of `docs/m2-plan` (rebased on `main` after #45), task by task and as a whole. The full suite passed (34 files, 386 tests: M2 adds 16 files and 185 tests), `eslint` and `astro check` reported 0 problems, `astro build` completed with only the two expected `templates` warnings, and the three Task 5 "rejects bad content" builds failed with the expected messages.
