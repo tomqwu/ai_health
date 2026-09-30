@@ -1,0 +1,47 @@
+---
+import { FIGURES } from '../../lib/figure/fixtures';
+import { REAL_SKELETON } from '../../lib/figure/pose/realSkeleton';
+import { t } from '../../lib/i18n';
+import type { Locale } from '../../lib/i18n/locales';
+import './figure.css';
+
+/** The figure sweep for one figure, as a table: every stature × frame, its highest point, what failed and what was only warned about (spec §14). */
+interface Props { lang: Locale; figureId: string }
+const { lang, figureId } = Astro.props;
+const figure = FIGURES[figureId]!;
+const STATURES = [150, 165, 175, 190, 200];
+const rows = STATURES.flatMap((statureCm) =>
+  figure.frames.map((frame, i) => {
+    const posed = figure.pose(REAL_SKELETON, i, { statureCm });
+    return { statureCm, label: frame.label[lang], topCm: Math.round(posed.topCm), errors: posed.findings.filter((f) => f.severity === 'error'), warnings: posed.findings.filter((f) => f.severity === 'warn') };
+  }),
+);
+---
+<div class="figure-checks-scroll" role="region" tabindex="0" aria-label={t(lang, 'devFigures.checks.region')}>
+<table class="figure-checks">
+  <thead>
+    <tr>
+      <th scope="col">{t(lang, 'devFigures.check.stature')}</th>
+      <th scope="col">{t(lang, 'devFigures.check.frame')}</th>
+      <th scope="col">{t(lang, 'devFigures.check.top')}</th>
+      <th scope="col">{t(lang, 'devFigures.check.result')}</th>
+      <th scope="col">{t(lang, 'devFigures.check.warnings')}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {rows.map((r) => (
+      <tr>
+        <td>{r.statureCm} cm</td>
+        <td>{r.label}</td>
+        <td>{r.topCm} cm</td>
+        <td>
+          {r.errors.length === 0
+            ? <span class="pass">✓ {t(lang, 'devFigures.check.pass')}</span>
+            : <span class="fail">✗ {t(lang, 'devFigures.check.fail')}: {r.errors.map((f, i) => <>{i > 0 && ', '}<code>{f.check}</code></>)}</span>}
+        </td>
+        <td>{r.warnings.length === 0 ? '—' : <span class="warn">{r.warnings.map((f, i) => <>{i > 0 && '; '}{f.message}</>)}</span>}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>
+</div>

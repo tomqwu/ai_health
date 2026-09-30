@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import type { Locator } from '@playwright/test';
+import { FIGURES } from '../../src/lib/figure/fixtures';
 import { SMITH_SQUAT } from '../../src/lib/figure/fixtures/smith-squat';
+import { EQUIPMENT_MODELS } from '../../src/lib/figure/geometry/models';
 import { en } from '../../src/lib/i18n/en';
 import { collectErrors } from './helpers';
 
@@ -24,10 +26,12 @@ const pixelSignature = (canvas: Locator) =>
     return hash >>> 0;
   });
 
+const SQUAT = '/ai_health/en/dev/figures/smith-squat/';
+
 for (const lang of ['en', 'zh']) {
-  test(`/${lang}/dev/figure-spike/ renders the 3D viewer, frames and passing checks`, async ({ page }) => {
+  test(`/${lang}/dev/figures/smith-squat/ renders the 3D viewer, frames and passing checks`, async ({ page }) => {
     const errors = collectErrors(page);
-    await page.goto(`/ai_health/${lang}/dev/figure-spike/`);
+    await page.goto(`/ai_health/${lang}/dev/figures/smith-squat/`);
     await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
 
     const colours = await page.locator('canvas.figure-canvas').evaluate((c: HTMLCanvasElement) => {
@@ -41,17 +45,15 @@ for (const lang of ['en', 'zh']) {
     expect(colours).toBeGreaterThan(200);
 
     await expect(page.locator('.figure-frames img')).toHaveCount(3);
-    await expect(page.locator('.spike-checks tbody tr')).toHaveCount(15);
-    await expect(page.locator('.spike-checks .fail')).toHaveCount(0);
-    // Elbows show the bend magnitude the validator checks, explained by the note under the table.
-    await expect(page.locator('.spike-checks tbody')).not.toContainText(/\* -/);
-    await expect(page.locator('.spike-checks-note')).toBeVisible();
+    await expect(page.locator('.figure-checks tbody tr')).toHaveCount(15);
+    await expect(page.locator('.figure-checks .fail')).toHaveCount(0);
+    await expect(page.locator('.figure-checks .warn')).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 }
 
 test('frame buttons switch the pose', async ({ page }) => {
-  await page.goto('/ai_health/en/dev/figure-spike/');
+  await page.goto(SQUAT);
   await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
   await expect(page.locator('svg.figure-overlay')).toBeVisible(RENDER_TIMEOUT); // frame 0 has been rendered
   const canvas = page.locator('canvas.figure-canvas');
@@ -63,7 +65,7 @@ test('frame buttons switch the pose', async ({ page }) => {
 
 test('Play animates the figure without errors and Pause stops it', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('/ai_health/en/dev/figure-spike/');
+  await page.goto(SQUAT);
   await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
   await expect(page.locator('svg.figure-overlay')).toBeVisible(RENDER_TIMEOUT); // frame 0 has been rendered
   const canvas = page.locator('canvas.figure-canvas');
@@ -84,7 +86,7 @@ test('Play animates the figure without errors and Pause stops it', async ({ page
 
 test('Reset view restores the camera and the movement arrow', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('/ai_health/en/dev/figure-spike/');
+  await page.goto(SQUAT);
   await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
   const overlay = page.locator('svg.figure-overlay');
   await expect(overlay).toBeVisible(RENDER_TIMEOUT); // frame 1 shows its arrow
@@ -109,7 +111,7 @@ test('Reset view restores the camera and the movement arrow', async ({ page }) =
 
 test('the canvas is an image whose label names the step and says when it is animating', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('/ai_health/en/dev/figure-spike/');
+  await page.goto(SQUAT);
   await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
   const canvas = page.locator('canvas.figure-canvas');
   await expect(canvas).toHaveAttribute('role', 'img');
@@ -129,7 +131,7 @@ test('the canvas is an image whose label names the step and says when it is anim
 test('the canvas and the arrow overlay follow the container width', async ({ page }) => {
   const errors = collectErrors(page);
   await page.setViewportSize({ width: 1000, height: 900 });
-  await page.goto('/ai_health/en/dev/figure-spike/');
+  await page.goto(SQUAT);
   await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
   const canvas = page.locator('canvas.figure-canvas');
   const overlay = page.locator('svg.figure-overlay');
@@ -207,7 +209,7 @@ test('the canvas and the arrow overlay follow the container width', async ({ pag
 
 test('shows the error state and fallback images when the model fails to load', async ({ page }) => {
   await page.route('**/models/human.glb', (route) => route.abort());
-  await page.goto('/ai_health/en/dev/figure-spike/');
+  await page.goto(SQUAT);
   const viewer = page.locator('[data-figure-status="error"]');
   await expect(viewer).toBeVisible({ timeout: 90_000 });
   await expect(viewer.getByRole('status')).toHaveText(en['figure.loadError']);
@@ -216,5 +218,44 @@ test('shows the error state and fallback images when the model fails to load', a
   for (const img of await images.all()) {
     await img.scrollIntoViewIfNeeded();
     await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+  }
+});
+
+test('the height picker re-poses the figure at another stature', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto(SQUAT);
+  await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator('svg.figure-overlay')).toBeVisible(RENDER_TIMEOUT);
+  const canvas = page.locator('canvas.figure-canvas');
+  const before = await pixelSignature(canvas);
+  await expect(page.locator('.figure-note')).toContainText(en['figure.typicalHeight']);
+  await page.getByLabel(en['figure.height']).selectOption('200');
+  await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator('.figure-note')).toContainText(en['figure.shownAt'].replace('{height}', '200'));
+  await expect.poll(() => pixelSignature(canvas), RENDER_TIMEOUT).not.toBe(before);
+  expect(errors).toEqual([]);
+});
+
+test('a generalized figure (dumbbell curl) renders, plays and has passing checks', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/ai_health/en/dev/figures/db-curl/');
+  await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator('svg.figure-overlay')).toBeVisible(RENDER_TIMEOUT);
+  await expect(page.locator('.figure-checks .fail')).toHaveCount(0);
+  const canvas = page.locator('canvas.figure-canvas');
+  const before = await pixelSignature(canvas);
+  await page.getByRole('button', { name: en['figure.play'], exact: true }).click();
+  await page.waitForTimeout(1200);
+  expect(await pixelSignature(canvas)).not.toBe(before);
+  expect(errors).toEqual([]);
+});
+
+test('the gallery lists every figure and equipment model with its pre-rendered image', async ({ page }) => {
+  await page.goto('/ai_health/en/dev/figures/');
+  const images = page.locator('.figure-gallery img');
+  await expect(images).toHaveCount(Object.keys(FIGURES).length + Object.keys(EQUIPMENT_MODELS).length);
+  for (const img of await images.all()) {
+    await img.scrollIntoViewIfNeeded();
+    await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
   }
 });
