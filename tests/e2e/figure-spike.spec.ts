@@ -3,6 +3,11 @@ import type { Locator } from '@playwright/test';
 import { en } from '../../src/lib/i18n/en';
 import { collectErrors } from './helpers';
 
+// Software WebGL on CI (SwiftShader, no GPU) can take seconds per frame, and each render blocks the
+// page's main thread, so these tests get a longer budget than the 30 s default.
+test.describe.configure({ timeout: 120_000 });
+const RENDER_TIMEOUT = { timeout: 30_000 };
+
 // Downsampled RGB signature of the canvas: samples every 7th pixel, hashed (FNV-1a) into one number.
 const pixelSignature = (canvas: Locator) =>
   canvas.evaluate((c: HTMLCanvasElement) => {
@@ -49,7 +54,7 @@ test('frame buttons switch the pose', async ({ page }) => {
   const before = await pixelSignature(canvas);
   await page.getByRole('button', { name: /2\. Bottom/ }).click();
   await expect(page.getByRole('button', { name: /2\. Bottom/ })).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => pixelSignature(canvas)).not.toBe(before);
+  await expect.poll(() => pixelSignature(canvas), RENDER_TIMEOUT).not.toBe(before);
 });
 
 test('Play animates the figure without errors and Pause stops it', async ({ page }) => {
@@ -89,12 +94,12 @@ test('Reset view restores the camera and the movement arrow', async ({ page }) =
   await page.mouse.down();
   await page.mouse.move(x + 150, y, { steps: 10 });
   await page.mouse.up();
-  await expect(overlay).toHaveCount(0); // orbiting hides the arrow (it would no longer line up)
-  await expect.poll(() => pixelSignature(canvas)).not.toBe(before);
+  await expect(overlay).toHaveCount(0, RENDER_TIMEOUT); // orbiting hides the arrow (it would no longer line up)
+  await expect.poll(() => pixelSignature(canvas), RENDER_TIMEOUT).not.toBe(before);
 
   await page.getByRole('button', { name: en['figure.resetView'], exact: true }).click();
-  await expect(overlay).toBeVisible();
-  await expect.poll(() => pixelSignature(canvas)).toBe(before);
+  await expect(overlay).toBeVisible(RENDER_TIMEOUT);
+  await expect.poll(() => pixelSignature(canvas), RENDER_TIMEOUT).toBe(before);
   expect(errors).toEqual([]);
 });
 

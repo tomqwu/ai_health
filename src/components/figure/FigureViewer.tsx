@@ -42,11 +42,13 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
     let sceneDisposed = false;
     let scene: FigureScene | undefined;
     let controls: { dispose(): void } | undefined;
+    let orbitFrame = 0; // pending requestAnimationFrame id for an orbit re-render, 0 if none
     // Disposal tracks the scene, not the effect: a no-op until mountFigure has produced a scene,
     // then idempotent, so the scene (and controls, if created) are released exactly once.
     const disposeScene = () => {
       if (!scene || sceneDisposed) return;
       sceneDisposed = true;
+      cancelAnimationFrame(orbitFrame);
       controls?.dispose();
       scene.dispose();
     };
@@ -78,12 +80,21 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
         orbit.maxDistance = 9;
         orbit.update();
         orbit.saveState();
+        // A drag fires 'change' on every pointermove; render at most once per animation frame so a slow
+        // GPU (or software WebGL) never queues up a backlog of renders on the main thread.
         orbit.addEventListener('change', () => {
-          mounted.render();
           setArrow(null);
+          if (!orbitFrame) {
+            orbitFrame = requestAnimationFrame(() => {
+              orbitFrame = 0;
+              mounted.render();
+            });
+          }
         });
         resetRef.current = () => {
           orbit.reset();
+          cancelAnimationFrame(orbitFrame); // render now instead
+          orbitFrame = 0;
           mounted.render();
         };
         sceneRef.current = mounted;
