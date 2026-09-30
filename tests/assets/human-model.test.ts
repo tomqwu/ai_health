@@ -6,6 +6,7 @@ import { MeshoptDecoder } from 'meshoptimizer';
 import { describe, expect, it } from 'vitest';
 import { extractSkeleton } from '../../scripts/lib/extractSkeleton';
 import skeletonJson from '../../src/lib/figure/pose/skeleton.json';
+import { rotate } from '../../src/lib/figure/math/quat';
 import { restPose, type SkeletonDef } from '../../src/lib/figure/pose/skeleton';
 import { solveSmithSquat } from '../../src/lib/figure/pose/smithSquat';
 import { validateSmithSquat } from '../../src/lib/figure/pose/validate';
@@ -37,6 +38,13 @@ describe('committed human model', () => {
   it('has an adult stature', () => {
     expect(skeleton.statureCm).toBeGreaterThan(160);
     expect(skeleton.statureCm).toBeLessThan(195);
+  });
+  it('places the skull top at the stature, not behind the head', () => {
+    const head = restPose(skeleton, 1).head!;
+    const off = rotate(head.rotation, skeleton.headTopLocal);
+    const top = [head.position[0] + off[0], head.position[1] + off[1], head.position[2] + off[2]];
+    expect(Math.abs(top[1]! - skeleton.statureCm)).toBeLessThan(0.5);
+    expect(top[2]!).toBeGreaterThanOrEqual(-5);
   });
   it.each([150, 165, 175, 190, 200])('Smith squat frames are valid on the real rig at %i cm', (statureCm) => {
     for (const frame of SMITH_SQUAT.frames) {

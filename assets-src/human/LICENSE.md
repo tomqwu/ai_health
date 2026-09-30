@@ -4,3 +4,16 @@
 `makehuman_system_assets` pack. The MakeHuman base mesh, targets, rig and every asset used here (eyes, eyebrows,
 eyelashes, hair `short02`, clothes `male_casualsuit04`, shoes `shoes06`) are released under **CC0 1.0**, and models
 exported from MakeHuman/MPFB are CC0. The MPFB add-on itself is GPL-3.0; none of its code is included in this repository.
+
+## Provenance
+
+Built on 2026-09-29 with:
+
+- MPFB 2.0.17 (Blender extension, `mpfb`), installed from
+  `https://extensions.blender.org/download/sha256:4f0a879d64a39bf646fbf5f53601ac678855da329d650617dca5737548239a87/add-on-mpfb-v2.0.17.zip`
+  (sha256 `4f0a879d64a39bf646fbf5f53601ac678855da329d650617dca5737548239a87`).
+- MakeHuman system assets (CC0) from
+  `https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip`
+  (sha256 `b542127a8e25547c7c29c19f2d1d2adb9a664c80396ecd694095dbc8028a0107`).
+
+`scripts/setup-mpfb.sh` pins and verifies both.
