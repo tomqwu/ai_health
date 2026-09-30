@@ -34,7 +34,7 @@ export const SMITH_BENCH_PRESS: PoseFigureSpec = {
     {
       id: 'unrack',
       label: { en: 'Unrack', zh: '出杠' },
-      cue: { en: 'Arms straight, bar over the lower chest', zh: '手臂伸直，杠铃位于下胸上方' },
+      cue: { en: 'Arms long with soft elbows, bar over the lower chest', zh: '手臂伸长、肘部微屈，杠铃位于下胸上方' },
       trunk,
       arms: bothArms(grip()),
       legs,
