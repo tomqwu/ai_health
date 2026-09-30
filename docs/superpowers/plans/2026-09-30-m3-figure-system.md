@@ -7000,10 +7000,10 @@ import { type ArmGoal, bothLegs, type PoseFigureSpec, type TrunkPose } from '../
 /** Standing side-on to the left column (it is on the body's left), facing the camera (+z); chest-height pulley. */
 const trunk: TrunkPose = { hips: { from: 'cable.left.chest', yFromFloor: true, bodyCm: [-72, 93.5, 6] } };
 const legs = bothLegs({ to: { from: 'body.hips', yFromFloor: true, bodyCm: [16, 0, 13] }, knee: [0.15, 0, 1], sole: [0, -1, 0], toes: [0.12, 0, 1], contact: 'flat' });
-/** Both hands on one upright handle: the left hand above the right, palms facing each other around it. */
+/** Both hands on one upright handle: the left hand above the right, palms facing each other around it (and back toward the chest). */
 const hands = (reachCm: number): Record<Side, ArmGoal> => ({
-  l: { to: { from: 'body.chest', bodyCm: [1, 2, reachCm] }, elbow: [1, -0.3, -0.3], hand: { grip: 'bar', axis: [0, 1, 0], palm: [-1, 0, 0] } },
-  r: { to: { from: 'body.chest', bodyCm: [1, -7, reachCm] }, elbow: [-1, -0.3, -0.3], hand: { grip: 'bar', axis: [0, 1, 0], palm: [1, 0, 0] } },
+  l: { to: { from: 'body.chest', bodyCm: [1, 2, reachCm] }, elbow: [1, -0.3, -0.3], hand: { grip: 'bar', axis: [0, 1, 0], palm: [-1, 0, -1] } },
+  r: { to: { from: 'body.chest', bodyCm: [1, -7, reachCm] }, elbow: [-1, -0.3, -0.3], hand: { grip: 'bar', axis: [0, 1, 0], palm: [1, 0, -1] } },
 });
 const props = { cable: { column: 'left', pulley: 'chest', handle: 'single-handle', hand: 'both' } } as const;
 
@@ -7409,7 +7409,7 @@ export const HALF_KNEELING_HIP_FLEXOR_STRETCH: PoseFigureSpec = {
       id: 'shift',
       label: { en: 'Shift forward', zh: '重心前移' },
       cue: { en: 'Tuck the pelvis and shift forward until you feel the stretch', zh: '骨盆后倾，重心前移，直到感到拉伸' },
-      trunk: trunk(47.6, 3, { pitchDeg: -4, spine: { flexDeg: 4 } }),
+      trunk: trunk(47.6, 3, { spine: { flexDeg: 4 } }),
       arms: { l: onHips('l'), r: onHips('r') },
       legs: { l: front, r: { ...rear, to: { ...rear.to, bodyCm: [-11, 0, -55] } } },
       contacts: [{ part: 'shank_r', on: 'floor' }],
@@ -7418,7 +7418,7 @@ export const HALF_KNEELING_HIP_FLEXOR_STRETCH: PoseFigureSpec = {
       id: 'reach',
       label: { en: 'Reach', zh: '上举' },
       cue: { en: 'Reach the right arm up and slightly left', zh: '右臂向上并略向左伸展' },
-      trunk: trunk(47.6, 3, { pitchDeg: -4, spine: { flexDeg: 4, sideDeg: 8 } }),
+      trunk: trunk(47.6, 3, { spine: { flexDeg: 4, sideDeg: 8 } }),
       arms: { l: onHips('l'), r: { to: { from: 'body.shoulder_r', bodyCm: [8, 56, 2] }, elbow: [-1, 0, -0.3], hand: { grip: 'free', palm: [1, 0, 0] }, shrugDeg: 10 } },
       legs: { l: front, r: { ...rear, to: { ...rear.to, bodyCm: [-11, 0, -55] } } },
       contacts: [{ part: 'shank_r', on: 'floor' }],
@@ -8860,3 +8860,8 @@ gh api -X PATCH repos/tomqwu/ai_health/milestones/$M -f state=closed
 The cardio machines in Task 2's code were changed so no part floats (checked by a connectivity test): the treadmill deck now reaches its top (`deckTopCm`) so the belt sits on it, and its rails end at the deck's edge; the rower's fan is 37 cm across (`fanRadiusCm` 18.5, new `fanCentreYCm` 40), the rail runs into the fan cage, and the front foot sits under a new `rower-fan-stand`; the bike gains a `bike-bottom-bracket` tube that carries the crank, and its seat tube runs up into the saddle. No later task reads these dimensions: every name, anchor and surface keeps its value (`treadmill.belt`, `rower.seat`, `rower.handle` at y 48, `rower.footplates`, `bike.saddle`, `bike.handlebars`, `bike.crank`), and Tasks 3 and 7 and 9-13 use none of the cardio constants.
 
 > **Execution note (Task 3 review):** spotter arms sit against the uprights' inner faces (centre `X − u/2 − 2.5`, clear of the Smith rail by 1.5 cm) and hang from sleeves `spotter-sleeve-{left|right}-{front|back}` around each upright; a stations test asserts arm → sleeve → upright contact and rail clearance. The trainer's weight stacks are tied to the frame, the bench's rear foot bar reaches the wheels, and attachment stills hang from a cable to the pulley stub (connectivity tests).
+
+> **Execution note (Task 4 review):** two fixes change the Task 4 code above; the plan's code blocks elsewhere are updated where later data depended on them.
+> - **The hip is read from the pelvis bone's own orientation**, not the `pelvis − spine_03` line: `jointAngles` rotates the rest trunk line with the pelvis (`RigFrame.trunkLineLocal`), so an authored spine bend no longer counts as hip flexion (about 28% of it leaked in on the real rig). Standing still reads 0, the hinge and `sagittalBendDeg` are unchanged, and the Smith squat's hip readings are unchanged (to 5e-7°; it bends no spine bones), so its limits and pre-renders are unchanged. Figures that bend the spine now read their true hip angle: on the real rig, the ab-wheel rollout reads 49.6° at `start` (was 52.9), the ball crunch 12.3° at `crunch` (was 20.7 at 175 cm), the Romanian deadlift 100.1° at `hinge` (was 101.8), and the half-kneeling stretch's back hip −20.44° at `shift`/`reach` (was −19.33), past the −20° limit. Task 12's stretch therefore drops `pitchDeg: -4` from `shift` and `reach` (the trunk keeps the `-3` of `set`), which reads −19.44° at every stature; the limit is not loosened.
+> - **An ambiguous palm hint throws** instead of silently choosing a grip: `solvePose` throws `frame "<id>": the left|right hand's palm hint [...] is nearly perpendicular to both palm sides, so overhand or underhand is ambiguous` when a bar grip's hint is within about 14.5° of perpendicular to both palm sides (`|dot| < PALM_HINT_MIN = 0.25`, exported from `solvePose.ts`), and `... lies nearly along the forearm` for a free hand whose hint is within 14.5° of the forearm (the old fallback to +Y/+Z is gone). The check runs on the solver's last pass, so it applies to in-between poses too (Play and the sweep): a palm hint that turns between two keyframes must stay clear of the band throughout. Every figure in Tasks 8–13 was solved on both rigs at all five statures with this check; only Task 11's Pallof press tripped it (`set`: |dot| 0.09 on the synthetic rig, 0.35 on the real one, so the rigs chose opposite grips). Its hints are now `[-1, 0, -1]` / `[1, 0, -1]` (toward the other hand and back toward the chest), which picks the same side the real rig already drew (the solved real-rig pose is identical) with margins above 0.45 everywhere.
+> - Smaller fixes: an ab-wheel hand with `alongCm: 0` throws (it named no handle); a two-hand single handle whose grips coincide lies across the left palm instead of along rounding noise; `SMITH_BAR_PART` is exported from `geometry/trainer.ts` and re-exported by `pose/props.ts` (same name and pattern).

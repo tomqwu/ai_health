@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type Vec3, add, distance, X_AXIS } from '../math/vec3';
+import { type Vec3, add, distance, X_AXIS, Z_AXIS } from '../math/vec3';
 import { degToRad } from '../math/quat';
 import { ILLUSTRATIVE_SMITH } from '../geometry/smith';
 import { SMITH_SQUAT } from '../fixtures/smith-squat';
@@ -62,6 +62,33 @@ describe('jointAngles', () => {
       expect(jointAngles(sk, turned(seed, 'thigh_l', X_AXIS, -40).world(), 'l').hipFlexDeg).toBeCloseTo(rest + 40, 6);
       // The old unsigned metric read this extension as +33° of flexion.
       expect(jointAngles(sk, turned(seed, 'thigh_l', X_AXIS, 30).world(), 'l').hipFlexDeg).toBeCloseTo(rest - 30, 6);
+    }
+  });
+
+  it('measures the hip from the pelvis, so bending the spine above it does not change the reading', () => {
+    for (const seed of SEEDS) {
+      const sk = syntheticSkeleton({ randomRestSeed: seed });
+      for (const thighDeg of [0, -50, 15]) {
+        const plain = turned(seed, 'thigh_l', X_AXIS, thighDeg);
+        const bent = turned(seed, 'thigh_l', X_AXIS, thighDeg);
+        // 45° of spine flexion (a spine bone turned about +X swings its children forward), spread over the spine.
+        for (const bone of ['spine_01', 'spine_02', 'spine_03']) bent.rotateWorld(bone, X_AXIS, degToRad(15));
+        const want = jointAngles(sk, plain.world(), 'l').hipFlexDeg;
+        expect(jointAngles(sk, bent.world(), 'l').hipFlexDeg, `seed ${seed}, thigh ${thighDeg}`).toBeCloseTo(want, 6);
+      }
+    }
+  });
+
+  it('does not read spreading the legs as hip flexion or extension', () => {
+    for (const seed of SEEDS) {
+      const sk = syntheticSkeleton({ randomRestSeed: seed });
+      // +Z is the figure's forward: turning the left thigh about it swings the leg out to the side. The
+      // unsigned angle between trunk and thigh grows by about 30° here; the hip's flexion barely moves.
+      for (const deg of [-30, 30]) expect(Math.abs(jointAngles(sk, turned(seed, 'thigh_l', Z_AXIS, deg).world(), 'l').hipFlexDeg)).toBeLessThan(2);
+      // Flexed, then spread: still read as flexion, not as extension.
+      const both = turned(seed, 'thigh_l', X_AXIS, -40);
+      both.rotateWorld('thigh_l', Z_AXIS, degToRad(20));
+      expect(jointAngles(sk, both.world(), 'l').hipFlexDeg).toBeGreaterThan(35);
     }
   });
 

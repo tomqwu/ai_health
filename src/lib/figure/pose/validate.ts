@@ -62,6 +62,12 @@ interface RigFrame {
   restAnkleDeg: Record<Side, number>;
   /** The hip's sagittal bend at rest (standing), per side: the hip angle's zero. */
   restHipDeg: Record<Side, number>;
+  /**
+   * The hip's proximal segment, the rest trunk line (spine_03 → pelvis), fixed in the pelvis bone. The hip
+   * is read against the pelvis's own orientation, so bending the spine above it does not count as hip
+   * flexion (the spine has its own limits).
+   */
+  trunkLineLocal: Vec3;
 }
 
 const rigFrames = new WeakMap<SkeletonDef, RigFrame>();
@@ -83,16 +89,18 @@ function rigFrame(sk: SkeletonDef): RigFrame {
     return { carrier, axisLocal: rotate(conjugate(rest[carrier]!.rotation), normalize(axis)) };
   };
   const back = scale(forward, -1);
+  const trunkLine = sub(P('pelvis'), P('spine_03'));
   const sides = <T>(fn: (side: Side) => T): Record<Side, T> => ({ l: fn('l'), r: fn('r') });
   const hinges = {
     elbow: sides((s) => hinge('elbow', `upperarm_${s}`, `upperarm_${s}`, sub(P(`lowerarm_${s}`), P(`upperarm_${s}`)), forward)),
     knee: sides((s) => hinge('knee', `thigh_${s}`, `thigh_${s}`, sub(P(`calf_${s}`), P(`thigh_${s}`)), back)),
-    hip: sides(() => hinge('hip', 'trunk (spine_03 → pelvis)', 'pelvis', sub(P('pelvis'), P('spine_03')), forward)),
+    hip: sides(() => hinge('hip', 'trunk (spine_03 → pelvis)', 'pelvis', trunkLine, forward)),
   };
   f = {
     hinges,
     restAnkleDeg: sides((s) => angleBetweenDeg(sub(P(`calf_${s}`), P(`foot_${s}`)), sub(P(`ball_${s}`), P(`foot_${s}`)))),
-    restHipDeg: sides((s) => sagittalBendDeg(rest, hinges.hip[s], sub(P('pelvis'), P('spine_03')), sub(P(`calf_${s}`), P(`thigh_${s}`)))),
+    restHipDeg: sides((s) => sagittalBendDeg(rest, hinges.hip[s], trunkLine, sub(P(`calf_${s}`), P(`thigh_${s}`)))),
+    trunkLineLocal: rotate(conjugate(rest.pelvis!.rotation), trunkLine),
   };
   rigFrames.set(sk, f);
   return f;
@@ -106,8 +114,8 @@ function rigFrame(sk: SkeletonDef): RigFrame {
  * a bend that leaves the hinge plane (a sideways bend) reads as ordinary flexion and is not flagged. It
  * happens when a solver leaves the proximal bone's twist at the shortest swing: in the Smith squat the
  * knee's bend plane sits up to about 25° off the thigh's hinge on the real rig (about 19° on the
- * synthetic one), for the same reason as the elbow (see `validateSmithSquat`). Rolling the thighs with
- * `twoBoneIK`'s `bendSide` would put the knee back on its hinge.
+ * synthetic one), for the same reason as the elbow (see `validateSmithSquat`). `solvePose` rolls the
+ * thighs with `twoBoneIK`'s `bendSide`, so its knees bend on their hinges; the note concerns the M1 squat.
  */
 function signedBendDeg(w: WorldPose, hinge: Hinge, proximal: Vec3, distal: Vec3): number {
   const axis = rotate(w[hinge.carrier]!.rotation, hinge.axisLocal);
@@ -130,18 +138,19 @@ function sagittalBendDeg(w: WorldPose, hinge: Hinge, proximal: Vec3, distal: Vec
 
 /**
  * Signed joint angles (deg) for one side. Knee and elbow: angle between the two segments, negative
- * when bent the wrong way (hyperextension). Hip: the same about the hip's hinge only (legs spread apart
- * do not count), relative to standing (the rest pose reads 0), negative for extension. Ankle:
+ * when bent the wrong way (hyperextension). Hip: the thigh against the pelvis's own trunk line (so spine
+ * bending does not count), about the hip's hinge only (legs spread apart do not count), relative to
+ * standing (the rest pose reads 0), negative for extension. Ankle:
  * dorsiflexion, the decrease of the shank-to-foot angle from the rest pose (negative = plantarflexion).
  */
 export function jointAngles(sk: SkeletonDef, w: WorldPose, side: Side): JointAngles {
-  const { hinges, restAnkleDeg, restHipDeg } = rigFrame(sk);
+  const { hinges, restAnkleDeg, restHipDeg, trunkLineLocal } = rigFrame(sk);
   const p = (n: string) => w[`${n}_${side}`]!.position;
   const thigh = sub(p('calf'), p('thigh'));
   return {
     elbowFlexDeg: signedBendDeg(w, hinges.elbow[side], sub(p('lowerarm'), p('upperarm')), sub(p('hand'), p('lowerarm'))),
     kneeFlexDeg: signedBendDeg(w, hinges.knee[side], thigh, sub(p('foot'), p('calf'))),
-    hipFlexDeg: sagittalBendDeg(w, hinges.hip[side], sub(w.pelvis!.position, w.spine_03!.position), thigh) - restHipDeg[side],
+    hipFlexDeg: sagittalBendDeg(w, hinges.hip[side], rotate(w.pelvis!.rotation, trunkLineLocal), thigh) - restHipDeg[side],
     ankleDorsiflexDeg: restAnkleDeg[side] - angleBetweenDeg(sub(p('calf'), p('foot')), sub(p('ball'), p('foot'))),
   };
 }

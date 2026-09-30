@@ -79,8 +79,29 @@ function bendBone(b: PoseBuilder, sk: SkeletonDef, bone: string, flexDeg: number
   if (flexDeg) b.rotateWorld(bone, rotate(turn, X_AXIS), degToRad(flexDeg));
 }
 
-/** Hand world rotation for a pose, given the current estimate of the forearm's direction. */
-function handRotation(rest: WorldPose, side: Side, goal: ArmGoal, forearm: Vec3): Quat {
+/**
+ * How clearly a palm hint must pick its side: the sine of the smallest angle (about 14.5°) between the
+ * hint and the directions where it would pick neither. A bar grip's palm faces one of two opposite
+ * sides, and the hint picks the one it points toward; within 14.5° of the plane between them, a few
+ * degrees of forearm lean (another stature, rig or in-between pose) would turn the grip over, silently,
+ * since the grip point and the wrist stay valid either way. The band is 29° wide, wider than the change
+ * in forearm direction between neighbouring sweep samples, so a grip that turns over between two samples
+ * lands in it at one of them. A hint that names a side points at it (|dot| near 1) or at least 45°
+ * toward it (0.71), far outside the band. A free hand's palm turns to the hint as seen across the
+ * forearm, which swings wildly for a hint within 14.5° of the forearm and is undefined along it.
+ */
+export const PALM_HINT_MIN = 0.25;
+
+/**
+ * Hand world rotation for a pose, given the current estimate of the forearm's direction. `strict`
+ * (the pass whose rotation is kept) throws when the palm hint does not clearly pick the palm's side.
+ */
+function handRotation(rest: WorldPose, side: Side, goal: ArmGoal, forearm: Vec3, where: { frameId: string; strict: boolean }): Quat {
+  const ambiguous = (why: string, measure: string, value: number) => {
+    const hand = side === 'l' ? 'left' : 'right';
+    const hint = goal.hand.palm.map((x) => +x.toFixed(2)).join(', ');
+    return new Error(`frame "${where.frameId}": the ${hand} hand's palm hint [${hint}] ${why} (${measure} ${value.toFixed(2)} < ${PALM_HINT_MIN}); point it at the side the palm should face`);
+  };
   const restFingers = normalize(sub(rest[`middle_01_${side}`]!.position, rest[`hand_${side}`]!.position));
   const restPalm = palmNormal(rest, side);
   const h = goal.hand;
@@ -93,16 +114,24 @@ function handRotation(rest: WorldPose, side: Side, goal: ArmGoal, forearm: Vec3)
     const along = sub(forearm, scale(axis, dot(forearm, axis)));
     fingers = length(along) > 1e-6 ? normalize(along) : normalize(cross(axis, h.palm));
     const p = cross(axis, fingers);
-    palm = dot(p, h.palm) >= 0 ? p : scale(p, -1);
+    const toward = dot(p, normalize(h.palm));
+    // `!(… >= …)` also catches NaN (a hint along the bar or of zero length).
+    if (where.strict && !(Math.abs(toward) >= PALM_HINT_MIN)) {
+      throw ambiguous('is nearly perpendicular to both palm sides, so overhand or underhand is ambiguous', '|dot|', Math.abs(toward));
+    }
+    palm = toward >= 0 ? p : scale(p, -1);
   } else if (h.grip === 'flat' || h.fingers) {
     fingers = h.grip === 'flat' ? h.fingers : h.fingers!;
     palm = h.palm;
   } else {
     // A free hand keeps a straight wrist: the fingers follow the forearm, the palm turns as near the hint as it can.
     fingers = forearm;
-    const across = (v: Vec3) => sub(v, scale(forearm, dot(v, forearm)));
     const hint = normalize(h.palm);
-    palm = [hint, Y_AXIS, Z_AXIS].map(across).find((v) => length(v) > 0.2) ?? X_AXIS;
+    const across = sub(hint, scale(forearm, dot(hint, forearm)));
+    if (where.strict && !(length(across) >= PALM_HINT_MIN)) {
+      throw ambiguous('lies nearly along the forearm, so the way the palm faces is ambiguous', 'sine of the angle', length(across));
+    }
+    palm = across;
   }
   return multiply(fromTwoPairs(restFingers, restPalm, fingers, palm), rest[`hand_${side}`]!.rotation);
 }
@@ -166,7 +195,8 @@ export function solvePose(sk: SkeletonDef, frame: PoseFrame, ctx: PoseContext): 
     const restHandRot = rest[`hand_${side}`]!.rotation;
     let forearm = normalize(sub(target, b.world()[`upperarm_${side}`]!.position));
     for (let pass = 0; pass < 3; pass++) {
-      const handRot = handRotation(rest, side, goal, forearm);
+      // Only the last pass's rotation is kept; the first starts from a rough forearm (shoulder → target).
+      const handRot = handRotation(rest, side, goal, forearm, { frameId: frame.id, strict: pass === 2 });
       const turn = multiply(handRot, conjugate(restHandRot));
       const wrist = sub(target, rotate(turn, gripRest));
       b.twoBoneIK(`upperarm_${side}`, `lowerarm_${side}`, `hand_${side}`, wrist, goal.elbow, goal.hinge === false ? {} : { bendSide: ELBOW_BEND_SIDE });
@@ -227,6 +257,7 @@ function armTarget(goal: ArmGoal, anchors: Readonly<Record<string, Vec3>>, k: nu
   const center = anchors[`hold.${hold}`];
   if (!center) throw new Error(`frame "${frameId}": a hand holds "${hold}", which the frame does not place`);
   // Ab-wheel handles are at fixed spots on the axle; bars take a body-scaled grip width.
+  if (hold === 'ab-wheel' && !(Math.abs(goal.to.alongCm) > 0)) throw new Error(`frame "${frameId}": an ab-wheel hand must say which handle it holds (alongCm + for the left, − for the right, not 0)`);
   const along = hold === 'ab-wheel' ? Math.sign(goal.to.alongCm) * AB_WHEEL_GRIP_OFFSET_CM : goal.to.alongCm * k;
   return add(center, [along, 0, 0]);
 }

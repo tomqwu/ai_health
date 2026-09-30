@@ -1,7 +1,7 @@
-import { type Vec3, midpoint, normalize, sub } from '../math/vec3';
+import { type Vec3, length, midpoint, normalize, sub } from '../math/vec3';
 import { buildAbWheel, buildBand, buildBarbell, buildCloseGripHandle, buildDumbbell, buildLatBar, buildRope, buildSingleHandle, cableLine } from '../geometry/implements';
 import type { Primitive } from '../geometry/primitives';
-import { pulleyPoint, smithMovingParts } from '../geometry/trainer';
+import { pulleyPoint, SMITH_BAR_PART, smithMovingParts } from '../geometry/trainer';
 import type { SceneParams } from '../geometry/scene';
 import { gripPoint, handAcross } from './body';
 import type { Side } from './hands';
@@ -31,7 +31,9 @@ export function frameProps(frame: PoseFrame, sol: PoseSolution, params: ScenePar
     else if (p.cable.handle === 'lat-bar') built = buildLatBar('lat-bar', hands, pulley);
     else if (p.cable.handle === 'close-grip-row-handle') built = buildCloseGripHandle('close-grip', hands, [handAcross(w, 'l'), handAcross(w, 'r')], pulley);
     else if (p.cable.hand === 'both') {
-      built = buildSingleHandle('single-handle', midpoint(hands[0], hands[1]), normalize(sub(hands[0], hands[1])), pulley);
+      // The handle runs from one grip to the other; hands on the same spot give no direction, so it lies across the left palm.
+      const span = sub(hands[0], hands[1]);
+      built = buildSingleHandle('single-handle', midpoint(hands[0], hands[1]), length(span) > 1e-6 ? normalize(span) : handAcross(w, 'l'), pulley);
     } else {
       const side = p.cable.hand ?? 'l';
       built = buildSingleHandle('single-handle', grip(side), handAcross(w, side), pulley);
@@ -44,5 +46,5 @@ export function frameProps(frame: PoseFrame, sol: PoseSolution, params: ScenePar
 /** Props that are solid implements: they must not pass through the floor or the equipment. */
 export const SOLID_PROP = /^(dumbbell-|barbell-(plate|collar|sleeve)|ab-wheel-(wheel|hub))/;
 
-/** The Smith bar's moving parts (bar, plates, carriages). */
-export const SMITH_BAR_PART = /^(bar$|plate-|carriage-)/;
+/** The Smith bar's moving parts (bar, plates, carriages): the trainer's own pattern. */
+export { SMITH_BAR_PART };

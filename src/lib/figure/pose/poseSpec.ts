@@ -9,7 +9,7 @@ import type { Side } from './hands';
  * data — trunk placement and angles, a goal for each limb, declared contacts and moving props — and the
  * solver turns it into bone rotations at any stature. All vectors use the pose-layer axes: +Y up, +Z the
  * figure's default facing, +X the figure's left. Right-side goals are usually the mirror of the left
- * (see `mirrorArm`, `mirrorLeg`, `both`).
+ * (see `mirrorArm`, `mirrorLeg`, `bothArms`, `bothLegs`).
  */
 
 /** The reference stature the `bodyCm` offsets are written for (spec §8.4: the default stature). */
@@ -59,11 +59,14 @@ export type Hold = 'smith-bar' | 'pullup-bar' | 'barbell' | 'ab-wheel';
  * How the hand is held:
  * - `bar`: closed around a bar or handle lying along `axis`. The fingers point the way the forearm does
  *   (a straight wrist) as far as the axis allows, and the palm faces the side of the bar `palm` points to
- *   (overhand, underhand or neutral); the wrist bends only as far as the forearm leans along the bar. The
+ *   (overhand, underhand or neutral), and must point clearly toward it: within about 14.5° of
+ *   perpendicular to both sides, the solver throws rather than guess (`PALM_HINT_MIN`). The wrist bends
+ *   only as far as the forearm leans along the bar. The
  *   bar sits in the fingers (pulling, hanging, carrying) or, with `seat: 'palm'`, low in the palm over
  *   the wrist (pressing).
  * - `flat`: flat on a surface, palm facing `palm`, fingers pointing along `fingers`.
- * - `free`: holding nothing; the palm faces `palm`, fingers along the forearm unless `fingers` is given.
+ * - `free`: holding nothing; the palm faces `palm` as seen across the forearm (a hint within about 14.5°
+ *   of the forearm throws), fingers along the forearm unless `fingers` is given.
  */
 export type HandPose =
   | { grip: 'bar'; axis: Vec3; palm: Vec3; seat?: 'fingers' | 'palm' }
