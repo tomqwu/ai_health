@@ -13,7 +13,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     # A hung step (e.g. an apt download in playwright install) must not hold main's queue for GitHub's 6 h default.
-    timeout-minutes: 30
+    # 40 min leaves room for a cold figure render (a renderer change: about 4–8 min with software WebGL) on top of
+    # the usual checks and end-to-end tests.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -25,7 +27,24 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npx playwright install --with-deps chromium
+      # Pre-rendered frames are cached by content hash (D11): the key lists every image's hash, so an
+      # unchanged figure is restored instead of rendered; a partial hit restores the newest cache and
+      # renders only what changed. Saved right after the render, so a later failing step keeps the renders.
+      - run: npm run figures:keys
+      - id: figures-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .cache/figures
+          key: figures-${{ hashFiles('figure-keys.txt') }}
+          restore-keys: figures-
       - run: npm run render:figures
+      # Default success(): only a complete render is saved (never always(): a failed render would fill the
+      # exact key with a partial cache, and entries are immutable). An exact hit is already saved.
+      - if: steps.figures-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .cache/figures
+          key: ${{ steps.figures-cache.outputs.cache-primary-key }}
       - run: npm run build
       - run: npm run test:e2e
       - if: failure()

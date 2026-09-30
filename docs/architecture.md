@@ -38,7 +38,8 @@ See [figure-pipeline.md](figure-pipeline.md) for the 3D figure layers, conventio
 | `npm run preview` | Serve the built `dist/` |
 | `npm test` | Unit tests (`src/`, `scripts/`, `tests/assets/`) |
 | `npx playwright install chromium` | One-time per machine: the browser Playwright and `render:figures` use |
-| `npm run render:figures` | Pre-render the 3D exercise frames into `public/figures/` (git-ignored) |
+| `npm run render:figures` | Pre-render the 3D exercise frames and equipment stills into `public/figures/` (git-ignored), reusing `.cache/figures/` for anything unchanged |
+| `npm run figures:keys` | Write the render cache keys to `figure-keys.txt` (CI's cache key) |
 | `npm run test:e2e` | Build, preview and run Playwright; run `render:figures` first locally |
 | `npm run build:human` | Regenerate the 3D human (needs Blender and MPFB; see [figure-pipeline.md](figure-pipeline.md)) |
 | `npm run check` / `npm run lint` | Type check / lint |
@@ -47,4 +48,4 @@ Astro 7 backgrounds `dev` and `preview` when it detects an AI agent. Only the Pl
 
 ## Deploy
 
-CI (`.github/workflows/ci.yml`) runs on every pull request and push to `main`: type check, lint, unit tests, `npm run render:figures`, build and the end-to-end tests. `.github/workflows/deploy.yml` runs only after CI succeeds for a push to `main`. It checks out the exact commit CI tested, installs Chromium, runs `npm run render:figures`, builds `dist/` and publishes it to GitHub Pages. It can also be started by hand (`workflow_dispatch`), which skips the wait for CI. CI never cancels a `main` run mid-run; runs queue, and a newer queued run supersedes an older one, so the newest commit on `main` always gets a deploy decision.
+CI (`.github/workflows/ci.yml`) runs on every pull request and push to `main`: type check, lint, unit tests (including the figure sweep), the cached `npm run render:figures`, build and the end-to-end tests. `.github/workflows/deploy.yml` runs only after CI succeeds for a push to `main`. It checks out the exact commit CI tested, installs Chromium, runs `npm run render:figures`, builds `dist/` and publishes it to GitHub Pages. It can also be started by hand (`workflow_dispatch`), which skips the wait for CI. CI never cancels a `main` run mid-run; runs queue, and a newer queued run supersedes an older one, so the newest commit on `main` always gets a deploy decision.

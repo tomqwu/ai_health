@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "build:human": "tsx scripts/build-human.ts",
-    "render:figures": "tsx scripts/render-figures.ts"
+    "render:figures": "tsx scripts/render-figures.ts",
+    "figures:keys": "tsx scripts/render-figures.ts --keys figure-keys.txt"
   },
   "dependencies": {
     "@astrojs/preact": "6.0.5",

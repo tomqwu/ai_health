@@ -5,6 +5,7 @@ dist/
 playwright-report/
 test-results/
 public/figures/
+figure-keys.txt
 assets-src/human/build/
 *.blend
 *.blend1

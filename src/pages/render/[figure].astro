@@ -19,28 +19,54 @@ const modelUrl = withBase('models/human.glb');
   <body>
     <canvas id="figure-canvas" data-model-url={modelUrl}></canvas>
     <script>
+      import type { FigureScene } from '../../lib/figure/scene3d/figureScene';
+
       const W = 900;
       const H = 1200;
       const g = window as unknown as Record<string, unknown>;
 
+      type Drawn = Pick<FigureScene, 'render' | 'dispose'> & Partial<Pick<FigureScene, 'showFrame' | 'arrow'>>;
+
+      /**
+       * One page renders every job: `renderFigure(id, frame)` mounts a figure once and shows its frames in
+       * turn; `renderEquipment(id)` mounts one equipment model. Each resolves after the frame is drawn.
+       */
       async function main() {
-        const { mountFigure } = await import('../../lib/figure/scene3d/figureScene');
-        const { FIGURES } = await import('../../lib/figure/fixtures');
-        const params = new URLSearchParams(location.search);
-        if (params.has('list')) {
-          g.__figureList = Object.values(FIGURES).map((f) => ({ id: f.id, frames: f.frames.length }));
-          return;
-        }
-        const figure = FIGURES[params.get('figure') ?? ''];
-        if (!figure) throw new Error(`Unknown figure: ${params.get('figure')}`);
-        const frame = Number(params.get('frame') ?? '0');
+        const [{ mountFigure, mountEquipment }, { FIGURES }, { EQUIPMENT_MODELS }] = await Promise.all([
+          import('../../lib/figure/scene3d/figureScene'),
+          import('../../lib/figure/fixtures'),
+          import('../../lib/figure/geometry/models'),
+        ]);
         const canvas = document.getElementById('figure-canvas') as HTMLCanvasElement;
         canvas.style.width = `${W}px`;
         canvas.style.height = `${H}px`;
-        const scene = await mountFigure(canvas, { width: W, height: H, modelUrl: canvas.dataset.modelUrl!, figure });
-        scene.showFrame(frame);
-        scene.render();
-        g.__figureReady = { arrow: scene.arrow(frame), width: W, height: H };
+        let current: { key: string; scene: Drawn } | undefined;
+        const use = async (key: string, mount: () => Promise<Drawn> | Drawn): Promise<Drawn> => {
+          if (current?.key === key) return current.scene;
+          current?.scene.dispose();
+          current = undefined;
+          const scene = await mount();
+          current = { key, scene };
+          return scene;
+        };
+        g.__figureHarness = {
+          list: () => ({ figures: Object.values(FIGURES).map((f) => ({ id: f.id, frames: f.frames.length })), equipment: Object.keys(EQUIPMENT_MODELS) }),
+          async renderFigure(id: string, frame: number) {
+            const figure = FIGURES[id];
+            if (!figure) throw new Error(`Unknown figure: ${id}`);
+            const scene = await use(`figure:${id}`, () => mountFigure(canvas, { width: W, height: H, modelUrl: canvas.dataset.modelUrl!, figure }));
+            scene.showFrame!(frame);
+            scene.render();
+            return { arrow: scene.arrow!(frame), width: W, height: H };
+          },
+          async renderEquipment(id: string) {
+            const model = EQUIPMENT_MODELS[id];
+            if (!model) throw new Error(`Unknown equipment model: ${id}`);
+            const scene = await use(`equipment:${id}`, () => mountEquipment(canvas, { width: W, height: H, model }));
+            scene.render();
+            return { arrow: null, width: W, height: H };
+          },
+        };
       }
       // The page is not built for production; the guard also lets the bundler drop this script there.
       if (import.meta.env.DEV) main().catch((err) => {
