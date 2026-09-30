@@ -116,23 +116,36 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
         setStatus('ready');
         // Follow the stage's width (the canvas is 4:3 via CSS): resize the renderer and camera, re-render,
         // resize the overlay's viewBox and re-project the arrow. Coalesced to one pass per animation frame.
+        // Browser zoom changes the CSS width and devicePixelRatio together, so both are tracked.
+        const pixelRatio = () => Math.min(window.devicePixelRatio, 2);
         let lastWidth = width;
-        observer = new ResizeObserver(() => {
-          if (resizeFrame) return;
-          resizeFrame = requestAnimationFrame(() => {
-            resizeFrame = 0;
-            const w = canvas.clientWidth;
-            if (!w || w === lastWidth) return;
-            lastWidth = w;
-            const h = stageHeightFor(w);
-            mounted.resize(w, h);
-            mounted.render();
-            setSize([w, h]);
-            const shown = arrowFrameRef.current;
-            if (shown !== null) setArrow(mounted.arrow(shown));
+        let lastRatio = pixelRatio();
+        if (typeof ResizeObserver !== 'undefined') {
+          observer = new ResizeObserver(() => {
+            if (resizeFrame) return;
+            resizeFrame = requestAnimationFrame(() => {
+              resizeFrame = 0;
+              try {
+                const w = canvas.clientWidth;
+                const ratio = pixelRatio();
+                if (!w || (w === lastWidth && ratio === lastRatio)) return;
+                lastWidth = w;
+                lastRatio = ratio;
+                const h = stageHeightFor(w);
+                mounted.resize(w, h, ratio);
+                cancelAnimationFrame(orbitFrame); // this render covers a pending orbit render
+                orbitFrame = 0;
+                mounted.render();
+                setSize([w, h]);
+                const shown = arrowFrameRef.current;
+                if (shown !== null) setArrow(mounted.arrow(shown));
+              } catch (err) {
+                console.error('3D figure resize failed:', err);
+              }
+            });
           });
-        });
-        observer.observe(stageRef.current!);
+          observer.observe(stageRef.current!);
+        }
       } catch (err) {
         console.error('3D figure failed to load:', err);
         sceneRef.current = null;

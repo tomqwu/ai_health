@@ -4,14 +4,15 @@ import { projectCm, resizeStage, stageHeightFor, type Stage } from './stage';
 
 // Node-only: a stub renderer stands in for WebGL; camera maths need no DOM.
 
-function fakeStage(width: number, height: number): { stage: Stage; setSize: ReturnType<typeof vi.fn> } {
+function fakeStage(width: number, height: number): { stage: Stage; setSize: ReturnType<typeof vi.fn>; setPixelRatio: ReturnType<typeof vi.fn> } {
   const setSize = vi.fn();
+  const setPixelRatio = vi.fn();
   const camera = new THREE.PerspectiveCamera(30, width / height, 0.05, 50);
   camera.position.set(0, 1, 5);
   camera.lookAt(0, 1, 0);
   camera.updateMatrixWorld();
-  const stage = { renderer: { setSize }, scene: new THREE.Scene(), camera, width, height } as unknown as Stage;
-  return { stage, setSize };
+  const stage = { renderer: { setSize, setPixelRatio }, scene: new THREE.Scene(), camera, width, height } as unknown as Stage;
+  return { stage, setSize, setPixelRatio };
 }
 
 describe('stageHeightFor', () => {
@@ -54,5 +55,31 @@ describe('resizeStage', () => {
     const after = projectCm(stage, [20, 130, 0]);
     expect(after[0]).toBeCloseTo(before[0] / 2, 6);
     expect(after[1]).toBeCloseTo(before[1] / 2, 6);
+  });
+
+  it('projects an off-centre point exactly like a camera built at the new size (aspect change)', () => {
+    const { stage } = fakeStage(600, 800);
+    resizeStage(stage, 800, 400);
+    const fresh = fakeStage(800, 400).stage;
+    for (const p of [[35, 150, 10], [-40, 60, -20]] as const) {
+      const [rx, ry] = projectCm(stage, [...p]);
+      const [fx, fy] = projectCm(fresh, [...p]);
+      expect(rx).toBeCloseTo(fx, 6);
+      expect(ry).toBeCloseTo(fy, 6);
+    }
+    // and it differs from what the old aspect would give, so the aspect update is what is being tested
+    const stale = fakeStage(600, 800).stage;
+    stale.width = 800;
+    stale.height = 400;
+    expect(Math.abs(projectCm(stale, [35, 150, 10])[0] - projectCm(fresh, [35, 150, 10])[0])).toBeGreaterThan(1);
+  });
+
+  it('applies a new pixel ratio before sizing, and leaves it alone when none is given', () => {
+    const { stage, setSize, setPixelRatio } = fakeStage(600, 800);
+    resizeStage(stage, 300, 400);
+    expect(setPixelRatio).not.toHaveBeenCalled();
+    resizeStage(stage, 300, 400, 1.5);
+    expect(setPixelRatio).toHaveBeenCalledWith(1.5);
+    expect(setPixelRatio.mock.invocationCallOrder[0]).toBeLessThan(setSize.mock.invocationCallOrder[1]!);
   });
 });

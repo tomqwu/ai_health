@@ -68,8 +68,9 @@ export function stageHeightFor(width: number): number {
   return Math.round((width * 4) / 3);
 }
 
-/** Resize the drawing buffer, the camera aspect and the size `projectCm` maps to. Leaves the canvas style alone (CSS owns it). */
-export function resizeStage(stage: Stage, width: number, height: number): void {
+/** Resize the drawing buffer (optionally at a new pixel ratio, e.g. after browser zoom), the camera aspect and the size `projectCm` maps to. Leaves the canvas style alone (CSS owns it). */
+export function resizeStage(stage: Stage, width: number, height: number, pixelRatio?: number): void {
+  if (pixelRatio !== undefined) stage.renderer.setPixelRatio(pixelRatio);
   stage.renderer.setSize(width, height, false);
   stage.camera.aspect = width / height;
   stage.camera.updateProjectionMatrix();

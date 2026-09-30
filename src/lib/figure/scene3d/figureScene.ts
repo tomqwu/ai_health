@@ -18,7 +18,7 @@ export interface FigureScene {
   arrow(index: number): { from: [number, number]; to: [number, number] } | null;
   render(): void;
   /** Resize the canvas drawing buffer, camera and arrow projection to `width` x `height` CSS pixels. Call `render()` afterwards. */
-  resize(width: number, height: number): void;
+  resize(width: number, height: number, pixelRatio?: number): void;
   dispose(): void;
 }
 
@@ -75,7 +75,7 @@ export async function mountFigure(
       return a ? { from: projectCm(stage, a.from), to: projectCm(stage, a.to) } : null;
     },
     render: () => renderStage(stage),
-    resize: (w, h) => resizeStage(stage, w, h),
+    resize: (w, h, pixelRatio) => resizeStage(stage, w, h, pixelRatio),
     dispose: () => disposeStage(stage),
   };
 }
