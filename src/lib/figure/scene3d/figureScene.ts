@@ -4,7 +4,7 @@ import { buildSmith, ILLUSTRATIVE_SMITH } from '../geometry/smith';
 import { barArrow } from '../overlay';
 import { buildEquipment, setBarHeight } from './equipment';
 import { applyPose, loadHuman } from './human';
-import { createStage, disposeStage, type OrbitView, projectCm, renderStage, setOrbitView, type Stage } from './stage';
+import { createStage, disposeStage, type OrbitView, projectCm, renderStage, resizeStage, setOrbitView, type Stage } from './stage';
 
 export const DEFAULT_STATURE_CM = 175;
 
@@ -17,6 +17,8 @@ export interface FigureScene {
   /** The frame's movement arrow projected to canvas pixels, if it has one. */
   arrow(index: number): { from: [number, number]; to: [number, number] } | null;
   render(): void;
+  /** Resize the canvas drawing buffer, camera and arrow projection to `width` x `height` CSS pixels. Call `render()` afterwards. */
+  resize(width: number, height: number): void;
   dispose(): void;
 }
 
@@ -73,6 +75,7 @@ export async function mountFigure(
       return a ? { from: projectCm(stage, a.from), to: projectCm(stage, a.to) } : null;
     },
     render: () => renderStage(stage),
+    resize: (w, h) => resizeStage(stage, w, h),
     dispose: () => disposeStage(stage),
   };
 }
