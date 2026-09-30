@@ -7,7 +7,7 @@ permissions:
   contents: read
 concurrency:
   group: ci-${{ github.ref }}
-  # Superseded PR runs are cancelled; runs on main never are, because Deploy waits for them.
+  # Superseded PR runs are cancelled. Runs on main are never cancelled mid-run; they queue, and a newer queued run supersedes an older one.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
