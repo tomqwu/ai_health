@@ -63,6 +63,21 @@ export function createStage(canvas: HTMLCanvasElement, width: number, height: nu
   return { renderer, scene, camera, width, height };
 }
 
+/** Canvas height for a given width: the viewer is 4:3 portrait. */
+export function stageHeightFor(width: number): number {
+  return Math.round((width * 4) / 3);
+}
+
+/** Resize the drawing buffer (optionally at a new pixel ratio, e.g. after browser zoom), the camera aspect and the size `projectCm` maps to. Leaves the canvas style alone (CSS owns it). */
+export function resizeStage(stage: Stage, width: number, height: number, pixelRatio?: number): void {
+  if (pixelRatio !== undefined) stage.renderer.setPixelRatio(pixelRatio);
+  stage.renderer.setSize(width, height, false);
+  stage.camera.aspect = width / height;
+  stage.camera.updateProjectionMatrix();
+  stage.width = width;
+  stage.height = height;
+}
+
 export function setOrbitView(stage: Stage, v: OrbitView): void {
   const az = THREE.MathUtils.degToRad(v.azimuthDeg);
   const el = THREE.MathUtils.degToRad(v.elevationDeg);

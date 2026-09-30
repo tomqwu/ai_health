@@ -25,13 +25,14 @@ const rows = STATURES.flatMap((statureCm) =>
   }),
 );
 ---
+<div class="spike-checks-scroll" role="region" tabindex="0" aria-label={t(lang, 'spike.checks.region')}>
 <table class="spike-checks">
   <thead>
     <tr>
-      <th>{t(lang, 'spike.check.stature')}</th>
-      <th>{t(lang, 'spike.check.frame')}</th>
-      <th>{t(lang, 'spike.check.angles')}</th>
-      <th>{t(lang, 'spike.check.result')}</th>
+      <th scope="col">{t(lang, 'spike.check.stature')}</th>
+      <th scope="col">{t(lang, 'spike.check.frame')}</th>
+      <th scope="col">{t(lang, 'spike.check.angles')}</th>
+      <th scope="col">{t(lang, 'spike.check.result')}</th>
     </tr>
   </thead>
   <tbody>
@@ -49,3 +50,4 @@ const rows = STATURES.flatMap((statureCm) =>
     ))}
   </tbody>
 </table>
+</div>
