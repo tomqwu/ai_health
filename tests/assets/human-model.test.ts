@@ -87,7 +87,8 @@ describe('committed human model', () => {
       expect(Math.hypot(got[0] - want[0], got[1] - want[1], got[2] - want[2]), bone).toBeLessThan(1e-5);
     }
     for (const [bone, want] of Object.entries(recordedRotations)) {
-      expect(angleBetweenQuatsDeg(normalizeQuat(sol.world[bone]!.rotation), normalizeQuat(want)), bone).toBeLessThan(1e-6);
+      // acos near 1 resolves only ~1.7e-6° (one ulp of the dot product), so pin at 1e-3°: far below any visible twist.
+      expect(angleBetweenQuatsDeg(normalizeQuat(sol.world[bone]!.rotation), normalizeQuat(want)), bone).toBeLessThan(1e-3);
     }
   });
   it('the Smith squat elbows still read as bent the wrong way about the humerus hinge (known limitation, #40)', () => {
