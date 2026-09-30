@@ -80,3 +80,26 @@ export function angleBetweenQuatsDeg(a: Quat, b: Quat): number {
   const d = Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
   return radToDeg(2 * Math.acos(Math.min(1, d)));
 }
+
+/**
+ * The rotation taking direction `from` onto `to` exactly, and turning about `to` so that `fromSide`
+ * lands as close as possible to `toSide` (their parts perpendicular to `from` / `to`). Builds a body
+ * part's orientation from two anatomical directions, e.g. where the fingers point and where the palm
+ * faces. Throws when a side is parallel to its direction (it then picks no turn).
+ */
+export function fromTwoPairs(from: Vec3, fromSide: Vec3, to: Vec3, toSide: Vec3): Quat {
+  const f = normalize(from);
+  const t = normalize(to);
+  const perp = (v: Vec3, axis: Vec3, name: string): Vec3 => {
+    const d = dot(v, axis);
+    const p: Vec3 = [v[0] - axis[0] * d, v[1] - axis[1] * d, v[2] - axis[2] * d];
+    const l = Math.hypot(p[0], p[1], p[2]);
+    if (!(l > 1e-9 * Math.max(1, Math.hypot(v[0], v[1], v[2])))) throw new Error(`fromTwoPairs: ${name} is parallel to its direction`);
+    return [p[0] / l, p[1] / l, p[2] / l];
+  };
+  const swing = fromUnitVectors(f, t);
+  const have = perp(rotate(swing, perp(fromSide, f, 'fromSide')), t, 'fromSide');
+  const want = perp(toSide, t, 'toSide');
+  const turn = Math.atan2(dot(cross(have, want), t), dot(have, want));
+  return normalizeQuat(multiply(fromAxisAngle(t, turn), swing));
+}
