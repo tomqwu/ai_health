@@ -74,7 +74,7 @@ parameters:
   cableRatio:
     type: enum
     values: ["1:1", "2:1", "4:1", unknown]
-    label: { en: Cable ratio, zh: 拉力比 }
+    label: { en: Cable ratio, zh: 滑轮倍率 }
     how:
       en: "From the manual; leave unknown if unsure"
       zh: "以说明书为准；不确定就选“未知”"
