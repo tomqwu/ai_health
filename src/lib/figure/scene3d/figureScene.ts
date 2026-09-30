@@ -41,11 +41,18 @@ export async function mountFigure(
   };
 
   const stage = createStage(canvas, opts.width, opts.height, opts.pixelRatio);
-  setOrbitView(stage, view);
-  const equipment = buildEquipment(buildSmith(smith, { barHeightCm: keyframes[0]!.barCenter[1], catchHeightCm: lowestBar - 8 }));
-  stage.scene.add(equipment);
-  const rig = await loadHuman(opts.modelUrl);
-  stage.scene.add(rig.root);
+  let rig: Awaited<ReturnType<typeof loadHuman>>;
+  let equipment: ReturnType<typeof buildEquipment>;
+  try {
+    setOrbitView(stage, view);
+    equipment = buildEquipment(buildSmith(smith, { barHeightCm: keyframes[0]!.barCenter[1], catchHeightCm: lowestBar - 8 }));
+    stage.scene.add(equipment);
+    rig = await loadHuman(opts.modelUrl);
+    stage.scene.add(rig.root);
+  } catch (e) {
+    disposeStage(stage); // do not leak the WebGL context when the model fails to load
+    throw e;
+  }
 
   const show = (sol: SmithSquatSolution) => {
     applyPose(rig, { local: sol.local, rootPosition: sol.rootPosition }, sol.scaleFactor);

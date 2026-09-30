@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import type { Quat } from '../math/quat';
 import type { Vec3 } from '../math/vec3';
+import { disposeMaterial } from './stage';
 
 /** Neutral skin tone applied at render time; the model ships without skin textures. */
 export const SKIN_TONE = '#c8957a';
@@ -29,7 +30,10 @@ export async function loadHuman(url: string): Promise<HumanRig> {
       o.castShadow = true;
       o.receiveShadow = true;
       o.frustumCulled = false; // skinned bounds do not follow the pose
-      if (o.name.startsWith('Body')) o.material = skin;
+      if (o.name.startsWith('Body')) {
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) disposeMaterial(m);
+        o.material = skin;
+      }
     }
   });
   const rootBone = bones.get('Root');

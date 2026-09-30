@@ -82,12 +82,25 @@ export function projectCm(stage: Stage, p: Vec3): [number, number] {
   return [((v.x + 1) / 2) * stage.width, ((1 - v.y) / 2) * stage.height];
 }
 
+/** Dispose a material together with every texture it references. */
+export function disposeMaterial(m: THREE.Material): void {
+  for (const value of Object.values(m)) if (value instanceof THREE.Texture) value.dispose();
+  m.dispose();
+}
+
+/** Release every GPU resource the stage owns, then drop the WebGL context. */
 export function disposeStage(stage: Stage): void {
-  stage.scene.traverse((o) => {
+  const { scene, renderer } = stage;
+  scene.traverse((o) => {
     if (o instanceof THREE.Mesh) {
       o.geometry.dispose();
-      for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose();
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) disposeMaterial(m);
     }
+    if (o instanceof THREE.SkinnedMesh) o.skeleton.dispose();
+    // Only some lights carry a shadow; the base Light type does not declare it.
+    if (o instanceof THREE.Light) (o as THREE.DirectionalLight).shadow?.map?.dispose();
   });
-  stage.renderer.dispose();
+  scene.environment?.dispose(); // the PMREM render target's texture
+  renderer.dispose();
+  renderer.forceContextLoss();
 }
