@@ -13,8 +13,12 @@ export type FloorItem = keyof typeof FLOOR_ITEMS;
  * in a press, dumbbells, handles, cables) are props of each frame (see `props.ts`).
  */
 export interface SceneSpec {
-  /** The Smith machine + functional trainer, with its settings. */
-  trainer?: TrainerState;
+  /**
+   * The Smith machine + functional trainer, with its settings. `catchBelowLowestBarCm` sets the safety
+   * catches that far below the lowest Smith bar of a pose figure's keyframes, at each stature, instead of
+   * at a fixed `catchHeightCm` (see `poseFigure`); `buildScene` itself ignores it.
+   */
+  trainer?: TrainerState & { catchBelowLowestBarCm?: number };
   /** The adjustable bench: floor point under the hinge, turn, and backrest angle. */
   bench?: { at: Vec3; yawDeg?: number; angleDeg: number };
   items?: ReadonlyArray<{ model: FloorItem; at: Vec3; yawDeg?: number }>;

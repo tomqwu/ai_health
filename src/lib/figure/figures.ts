@@ -122,17 +122,34 @@ function track(p: TrackPoint, frame: PoseFrame, sol: PoseSolution): Vec3 {
 /** Wrap a generalized pose spec (`kind: 'pose'`) as a figure. */
 export function poseFigure(spec: PoseFigureSpec): FigureModel {
   const paramsOf = (ctx: FigureContext) => ctx.params ?? ILLUSTRATIVE_SCENE;
-  // The fixed scene depends only on the equipment dimensions: build it once per set of them.
-  let cached: { params: SceneParams; built: Built } | undefined;
-  const scene = (ctx: FigureContext): Built => {
-    const params = paramsOf(ctx);
-    if (cached?.params !== params) cached = { params, built: buildScene(spec.scene, params) };
-    return cached.built;
-  };
   const railZ = (ctx: FigureContext) => (spec.scene.trainer ? paramsOf(ctx).trainer.railZCm : undefined);
   const solveOne = (sk: SkeletonDef, frame: PoseFrame, ctx: FigureContext, built: Built, settleCm = 0) => {
     const sol = solvePose(sk, frame, { statureCm: ctx.statureCm, scene: built, railZCm: railZ(ctx), settleCm });
     return { sol, props: frameProps(frame, sol, paramsOf(ctx)) };
+  };
+  // The equipment as placed, without stature-dependent settings: build it once per set of dimensions.
+  let placed: { params: SceneParams; built: Built } | undefined;
+  const base = (ctx: FigureContext): Built => {
+    const params = paramsOf(ctx);
+    if (placed?.params !== params) placed = { params, built: buildScene(spec.scene, params) };
+    return placed.built;
+  };
+  /**
+   * The fixed scene. Catches that follow the bar (`trainer.catchBelowLowestBarCm`) are set below the
+   * lowest Smith bar of the keyframes, solved against the placed equipment (the catches move no anchor
+   * a pose uses), so that scene is built once per stature and set of dimensions.
+   */
+  const catchBelow = spec.scene.trainer?.catchBelowLowestBarCm;
+  let set: { params: SceneParams; sk: SkeletonDef; statureCm: number; built: Built } | undefined;
+  const scene = (sk: SkeletonDef, ctx: FigureContext): Built => {
+    if (catchBelow === undefined) return base(ctx);
+    const params = paramsOf(ctx);
+    if (set?.params === params && set.sk === sk && set.statureCm === ctx.statureCm) return set.built;
+    const bars = spec.frames.map((f) => solveOne(sk, f, ctx, base(ctx)).sol.smithBar?.[1]).filter((y) => y !== undefined);
+    if (!bars.length) throw new Error(`${spec.id}: trainer.catchBelowLowestBarCm needs a frame that moves the Smith bar`);
+    const catchHeightCm = catchHeightFor(params.trainer, Math.min(...bars), catchBelow);
+    set = { params, sk, statureCm: ctx.statureCm, built: buildScene({ ...spec.scene, trainer: { ...spec.scene.trainer, catchHeightCm } }, params) };
+    return set.built;
   };
   /**
    * Blending two keyframes moves the hips along a straight line, but a body resting on a contact (knees
@@ -172,18 +189,18 @@ export function poseFigure(spec: PoseFigureSpec): FigureModel {
     playOrder: spec.playOrder ?? PLAY_ORDER,
     unilateral: spec.unilateral ?? false,
     expectedFailures: spec.expectedFailures ?? [],
-    scene: (_sk, ctx) => scene(ctx),
+    scene,
     camera: (ctx) => {
       const k = ctx.statureCm / REFERENCE_STATURE_CM;
       return {
         azimuthDeg: spec.camera.azimuthDeg,
         elevationDeg: spec.camera.elevationDeg,
         distanceCm: spec.camera.distanceCm * k,
-        targetCm: resolvePoint(spec.camera.target, scene(ctx).anchors, k),
+        targetCm: resolvePoint(spec.camera.target, base(ctx).anchors, k),
       };
     },
     pose: (sk, ref, ctx, opts = {}) => {
-      const built = scene(ctx);
+      const built = scene(sk, ctx);
       const frame = typeof ref === 'number' ? spec.frames[ref] : interpolatePoseFrame(spec.frames[ref.from]!, spec.frames[ref.to]!, ref.t);
       if (!frame) throw new RangeError(`${spec.id}: no frame ${String(ref)}`);
       const settled = typeof ref === 'number' ? { cm: 0, solves: 0 } : settle(sk, frame, ctx, built);

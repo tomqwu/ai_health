@@ -7,6 +7,11 @@ const press = (to: [number, number, number], elbow: [number, number, number], pa
   elbow,
   hand: { grip: 'bar', axis: [1, 0, 0], palm, seat: 'palm' },
 });
+/**
+ * Elbows down toward the feet and forward, about 45° from the body in the press. At the top the arms are
+ * nearly straight, so the pole only sets which way the slight bend points.
+ */
+const ELBOWS: [number, number, number] = [0.8, -1, 1];
 const legs = bothLegs({ to: { from: 'body.hips', yFromFloor: true, bodyCm: [27, 0, 62] }, knee: [0.2, 1, 0.4], sole: [0, -1, 0], toes: [0.2, 0, 1], contact: 'flat' });
 /** Seated on the pad, back on the backrest; the thighs rest on the seat's front edge (a loose contact). */
 const contacts = [
@@ -29,7 +34,7 @@ export const DB_INCLINE_PRESS: PoseFigureSpec = {
       label: { en: 'Press position', zh: '推起位' },
       cue: { en: 'Dumbbells over the upper chest, arms nearly straight', zh: '哑铃位于上胸上方，手臂接近伸直' },
       trunk,
-      arms: bothArms(press([7, 53, 11], [1, -0.4, 0])),
+      arms: bothArms(press([7, 53, 11], ELBOWS)),
       legs,
       contacts,
       props: { dumbbells: ['l', 'r'] },
@@ -50,7 +55,7 @@ export const DB_INCLINE_PRESS: PoseFigureSpec = {
       label: { en: 'Press', zh: '推起' },
       cue: { en: 'Press up and slightly in', zh: '向上并略向内推起' },
       trunk,
-      arms: bothArms(press([19, 29, 9], [1, -0.5, -0.2])),
+      arms: bothArms(press([14, 32, 20], ELBOWS)),
       legs,
       contacts,
       props: { dumbbells: ['l', 'r'] },
