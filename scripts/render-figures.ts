@@ -47,7 +47,7 @@ const server = spawn('node_modules/.bin/astro', ['dev', '--port', String(PORT), 
 let serverFailure: ServerExitError | undefined;
 const serverStopped = new Promise<void>((resolve) => {
   server.once('exit', (code, signal) => {
-    serverFailure ??= new ServerExitError(`astro dev exited before it was ready (${signal ? `signal ${signal}` : `exit code ${code}`})`, code ?? 1);
+    serverFailure ??= new ServerExitError(`astro dev exited before it was ready (${signal ? `signal ${signal}` : `exit code ${code}`})`, code || 1); // a clean exit is still a failure: no frames were rendered
     resolve();
   });
   server.once('error', (err) => {

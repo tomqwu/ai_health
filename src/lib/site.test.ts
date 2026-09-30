@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { withBase } from './site';
 
@@ -21,7 +22,10 @@ describe('outside Vite', () => {
       const { localizedPath, switchLocale } = await import('./src/lib/i18n/index.ts');
       console.log(JSON.stringify([withBase('a/'), localizedPath('zh', 'fitness'), switchLocale('/en/safety/', 'zh')]));
     `;
-    const out = execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], { encoding: 'utf8' });
+    const out = execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
+      encoding: 'utf8',
+      cwd: fileURLToPath(new URL('../..', import.meta.url)), // the script's relative imports resolve from the repo root
+    });
     expect(JSON.parse(out)).toEqual(['/a/', '/zh/fitness/', '/zh/safety/']);
   });
 });
