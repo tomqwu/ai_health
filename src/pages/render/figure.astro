@@ -1,0 +1,46 @@
+---
+import { withBase } from '../../lib/site';
+const modelUrl = withBase('models/human.glb');
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>Figure render harness</title>
+    <style>html, body { margin: 0; background: #f3f2ee; } canvas { display: block; }</style>
+  </head>
+  <body>
+    <canvas id="figure-canvas" data-model-url={modelUrl}></canvas>
+    <script>
+      import { mountFigure } from '../../lib/figure/scene3d/figureScene';
+      import { FIGURES } from '../../lib/figure/fixtures';
+
+      const W = 900;
+      const H = 1200;
+      const g = window as unknown as Record<string, unknown>;
+
+      async function main() {
+        const params = new URLSearchParams(location.search);
+        if (params.has('list')) {
+          g.__figureList = Object.values(FIGURES).map((f) => ({ id: f.id, frames: f.frames.length }));
+          return;
+        }
+        const spec = FIGURES[params.get('figure') ?? ''];
+        if (!spec) throw new Error(`Unknown figure: ${params.get('figure')}`);
+        const frame = Number(params.get('frame') ?? '0');
+        const canvas = document.getElementById('figure-canvas') as HTMLCanvasElement;
+        canvas.style.width = `${W}px`;
+        canvas.style.height = `${H}px`;
+        const scene = await mountFigure(canvas, { width: W, height: H, modelUrl: canvas.dataset.modelUrl!, spec });
+        scene.showFrame(frame);
+        scene.render();
+        g.__figureReady = { arrow: scene.arrow(frame), width: W, height: H };
+      }
+      main().catch((err) => {
+        g.__figureError = String(err);
+        throw err;
+      });
+    </script>
+  </body>
+</html>

@@ -20,6 +20,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run render:figures
       - run: npm run build
       - uses: actions/upload-pages-artifact@v5
         with:
