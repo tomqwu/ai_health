@@ -40,4 +40,4 @@ Astro 7 backgrounds `dev` and `preview` when it detects an AI agent. The scripts
 
 ## Deploy
 
-Pushing to `main` runs `.github/workflows/deploy.yml`, which installs Chromium, runs `npm run render:figures`, builds `dist/` and publishes it to GitHub Pages. CI (`.github/workflows/ci.yml`) does the same before the end-to-end tests.
+CI (`.github/workflows/ci.yml`) runs on every pull request and push to `main`: type check, lint, unit tests, `npm run render:figures`, build and the end-to-end tests. `.github/workflows/deploy.yml` runs only after CI succeeds for a push to `main`. It checks out the exact commit CI tested, installs Chromium, runs `npm run render:figures`, builds `dist/` and publishes it to GitHub Pages. It can also be started by hand (`workflow_dispatch`), which skips the wait for CI. CI never cancels a run on `main`, so every merge gets a deploy decision.
