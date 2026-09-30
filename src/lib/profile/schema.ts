@@ -13,6 +13,10 @@ export const DEFAULT_SESSION_MINUTES = 35;
 /** "mon/0" = Monday, first slot. */
 export const SLOT_KEY = new RegExp(`^(${WEEKDAYS.join('|')})/\\d+$`);
 
+/** The issue message a list with a repeated entry reports; `parseProfile` turns it into `profile.error.duplicate`. */
+export const DUPLICATE_ISSUE = 'duplicate';
+const unique = (list: readonly unknown[]) => new Set(list).size === list.length;
+
 /**
  * The visitor's profile (spec §6). Lives only in the browser. Stored lengths are centimetres; `units`
  * affects display only. Objects are strict, so nothing beyond these fields (no name, age, weight or
@@ -29,10 +33,11 @@ export const ProfileSchema = z.strictObject({
   }),
   equipment: z
     .array(z.strictObject({ id: IdSchema, params: z.record(ParamNameSchema, ParamValueSchema).default({}) }))
-    .refine((list) => new Set(list.map((e) => e.id)).size === list.length, { message: 'each equipment id once' }),
-  attachments: z.array(IdSchema),
-  exclusions: z.array(IdSchema),
-  limitations: z.array(z.enum(LIMITATIONS)),
+    .refine((list) => unique(list.map((e) => e.id)), { message: DUPLICATE_ISSUE }),
+  // Each entry once: the engine iterates these lists, so a repeat would count twice (e.g. a doubled safety note).
+  attachments: z.array(IdSchema).refine(unique, { message: DUPLICATE_ISSUE }),
+  exclusions: z.array(IdSchema).refine(unique, { message: DUPLICATE_ISSUE }),
+  limitations: z.array(z.enum(LIMITATIONS)).refine(unique, { message: DUPLICATE_ISSUE }),
   schedule: z.strictObject({
     templateId: IdSchema,
     sessionMinutes: z.number().int().min(10).max(180),

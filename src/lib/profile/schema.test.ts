@@ -44,6 +44,13 @@ describe('ProfileSchema', () => {
     expect(ProfileSchema.safeParse({ ...v, equipment: [...v.equipment, ...v.equipment] }).success).toBe(false);
     expect(ProfileSchema.safeParse({ ...v, limitations: ['hip-sensitive'] }).success).toBe(false);
   });
+  it('rejects an attachment, exclusion or limitation listed twice', () => {
+    const v = valid();
+    expect(ProfileSchema.safeParse({ ...v, attachments: ['rope', 'lat-bar', 'rope'] }).success).toBe(false);
+    expect(ProfileSchema.safeParse({ ...v, exclusions: ['smith-squat', 'smith-squat'] }).success).toBe(false);
+    expect(ProfileSchema.safeParse({ ...v, limitations: ['knee-sensitive', 'knee-sensitive'] }).success).toBe(false);
+    expect(ProfileSchema.safeParse({ ...v, attachments: ['rope', 'lat-bar'], exclusions: ['smith-squat'], limitations: ['knee-sensitive', 'wrist-sensitive'] }).success).toBe(true);
+  });
   it('rejects an out-of-range stature and a wrong version', () => {
     expect(ProfileSchema.safeParse({ ...valid(), statureCm: 20 }).success).toBe(false);
     expect(ProfileSchema.safeParse({ ...valid(), version: 2 }).success).toBe(false);
