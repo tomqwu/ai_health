@@ -64,7 +64,8 @@ export function pulleyPoint(p: TrainerParams, side: ColumnSide, height: PulleyHe
   return [sideSign(side) * uprightX(p), p.pulleyHeightsCm[height], frontZ(p) + p.uprightSizeCm / 2 + 7];
 }
 
-const MOVING = /^(bar$|plate-|carriage-)/;
+/** Ids of the Smith machine's parts that move with the bar (bar, plates, carriages). */
+export const SMITH_BAR_PART = /^(bar$|plate-|carriage-)/;
 
 /** The Smith machine's own dimensions out of a trainer description (what `buildSmith` checks and draws). */
 export function smithPart(p: SmithParams): SmithParams {
@@ -73,7 +74,7 @@ export function smithPart(p: SmithParams): SmithParams {
 
 /** The Smith bar, plates and carriages at a bar height (the parts that move with the bar). */
 export function smithMovingParts(p: SmithParams, barHeightCm: number): Primitive[] {
-  return buildSmith(smithPart(p), { barHeightCm }).filter((q) => MOVING.test(q.id));
+  return buildSmith(smithPart(p), { barHeightCm }).filter((q) => SMITH_BAR_PART.test(q.id));
 }
 
 /** Everything wrong with a trainer description, as sentences (empty when it can be drawn). */
@@ -102,7 +103,7 @@ export function buildTrainer(p: TrainerParams, state: TrainerState = {}): Built 
   if (problems.length) throw new Error(`buildTrainer: ${problems.join('; ')}`);
   const bar = state.barHeightCm ?? (p.lowestBarHeightCm + p.highestBarHeightCm) / 2;
   const smith = buildSmith(smithPart(p), { barHeightCm: bar, catchHeightCm: state.catchHeightCm });
-  const prims = state.barHeightCm === undefined ? smith.filter((q) => !MOVING.test(q.id)) : smith;
+  const prims = state.barHeightCm === undefined ? smith.filter((q) => !SMITH_BAR_PART.test(q.id)) : smith;
   const u = p.uprightSizeCm;
   const X = uprightX(p);
   const Z = frontZ(p);
