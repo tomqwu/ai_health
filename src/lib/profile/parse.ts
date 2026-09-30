@@ -1,7 +1,7 @@
 import type { z } from 'zod';
 import type { Message } from '../i18n/format';
 import { migrate } from './migrate';
-import { type Profile, PROFILE_VERSION, ProfileSchema } from './schema';
+import { DUPLICATE_ISSUE, type Profile, PROFILE_VERSION, ProfileSchema } from './schema';
 
 /** One problem, located by a dotted path ("room.ceilingHeightCm"); "" = the whole file. */
 export interface FieldError {
@@ -24,6 +24,8 @@ function issueMessage(issue: z.core.$ZodIssue): Message {
       return { key: 'profile.error.range' };
     case 'unrecognized_keys':
       return { key: 'profile.error.unknownField', params: { field: issue.keys.join(', ') } };
+    case 'custom':
+      return { key: issue.message === DUPLICATE_ISSUE ? 'profile.error.duplicate' : 'profile.error.invalid' };
     default:
       return { key: 'profile.error.invalid' };
   }

@@ -100,5 +100,6 @@ export const zh: Dictionary = {
   'profile.error.range': '超出允许范围',
   'profile.error.choice': '不是允许的选项',
   'profile.error.unknownField': '不是个人资料中的字段：{field}',
+  'profile.error.duplicate': '包含重复项',
   'profile.error.invalid': '无效的值',
 };

@@ -5237,3 +5237,9 @@ Close the milestone (`gh api -X PATCH repos/tomqwu/ai_health/milestones/$M -f st
 **Dry run (2026-09-30).** Every code block of this plan was extracted into a scratch copy of `docs/m2-plan` (rebased on `main` after #45), task by task and as a whole. The full suite passed (34 files, 386 tests: M2 adds 16 files and 185 tests), `eslint` and `astro check` reported 0 problems, `astro build` completed with only the two expected `templates` warnings, and the three Task 5 "rejects bad content" builds failed with the expected messages.
 
 > **Execution note (Task 12 review):** tie-breaks use `compareIds` from `src/lib/engine/order.ts` (code-unit order), not `localeCompare`, whose order depends on the runtime locale. `params.ts` and `week.ts` import it.
+
+> **Execution note (M2 final review):** the merged code differs from the task code above in these places; copy from the source, not from this plan.
+> - Task 8 `checkGeometry`: heights are compared unrounded (`need > ceiling`, `low < lowestCm`, `high > highestCm`). Only the values shown are rounded, apart: the need up and the ceiling down; below a stop the bar down and the stop up, above a stop the bar up and the stop down.
+> - Task 6 `ProfileSchema`: `attachments`, `exclusions` and `limitations` take each entry once, like `equipment`; `parseProfile` reports a repeat as `profile.error.duplicate`.
+> - Task 11: `repsForTime` is gone (it was unused); `setWorkSec` charges a rep range at its top.
+> - Tasks 2 and 14: `format.test.ts` formats every engine and profile message with representative params, and `scenarios.test.ts` formats every emitted message, runs each profile under a 10-minute budget and checks a short session on a day with five priority-1 slots (`SYN_MANY_PRIORITY_TEMPLATE`).

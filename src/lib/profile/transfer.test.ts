@@ -47,6 +47,19 @@ describe('export / import', () => {
     const r = importProfile(JSON.stringify({ ...synthetic(), statureCm: '168' }));
     expect(r).toEqual({ ok: false, errors: [{ path: 'statureCm', message: { key: 'profile.error.type' } }] });
   });
+  it('reports an entry listed twice, on its list', () => {
+    const r = importProfile(JSON.stringify({ ...synthetic(), limitations: ['knee-sensitive', 'knee-sensitive'], equipment: [...synthetic().equipment, ...synthetic().equipment] }));
+    expect(r).toEqual({
+      ok: false,
+      errors: [
+        { path: 'equipment', message: { key: 'profile.error.duplicate' } },
+        { path: 'limitations', message: { key: 'profile.error.duplicate' } },
+      ],
+    });
+    if (r.ok) return;
+    expect(formatMessage('en', r.errors[0]!.message)).toBe('Lists the same entry more than once');
+    expect(formatMessage('zh', r.errors[0]!.message)).toBe('包含重复项');
+  });
   it('produces errors that read in both languages', () => {
     const r = importProfile(JSON.stringify({ ...synthetic(), statureCm: 20 }));
     if (r.ok) throw new Error('expected an error');

@@ -98,6 +98,7 @@ export const en = {
   'profile.error.range': 'Outside the allowed range',
   'profile.error.choice': 'Not one of the allowed choices',
   'profile.error.unknownField': 'Not a profile field: {field}',
+  'profile.error.duplicate': 'Lists the same entry more than once',
   'profile.error.invalid': 'Invalid value',
 } as const;
 
