@@ -11,7 +11,7 @@ type Ready = { arrow: Arrow; width: number; height: number };
 type Win = { __figureList?: Array<{ id: string; frames: number }>; __figureReady?: Ready; __figureError?: string };
 
 const PORT = 4329;
-const HARNESS = `http://localhost:${PORT}/ai_health/render/figure/`;
+const HARNESS = `http://127.0.0.1:${PORT}/ai_health/render/figure/`;
 const OUT = 'public/figures';
 const MIN_COLORS = 200;
 
@@ -28,7 +28,7 @@ async function waitForServer(url: string): Promise<void> {
 }
 
 // --ignore-lock keeps Astro 7 in the foreground even when it detects an AI agent, so kill() really stops it.
-const server = spawn('node_modules/.bin/astro', ['dev', '--port', String(PORT), '--ignore-lock'], {
+const server = spawn('node_modules/.bin/astro', ['dev', '--port', String(PORT), '--ignore-lock', '--host', '127.0.0.1'], {
   stdio: ['ignore', 'inherit', 'inherit'],
 });
 let browser: Browser | undefined;

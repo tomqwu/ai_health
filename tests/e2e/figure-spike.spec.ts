@@ -3,6 +3,11 @@ import type { Locator } from '@playwright/test';
 import { en } from '../../src/lib/i18n/en';
 import { collectErrors } from './helpers';
 
+// Software WebGL on CI (SwiftShader, no GPU) can take seconds per frame, and each render blocks the
+// page's main thread, so these tests get a longer budget than the 30 s default.
+test.describe.configure({ timeout: 120_000 });
+const RENDER_TIMEOUT = { timeout: 30_000 };
+
 // Downsampled RGB signature of the canvas: samples every 7th pixel, hashed (FNV-1a) into one number.
 const pixelSignature = (canvas: Locator) =>
   canvas.evaluate((c: HTMLCanvasElement) => {
@@ -49,7 +54,53 @@ test('frame buttons switch the pose', async ({ page }) => {
   const before = await pixelSignature(canvas);
   await page.getByRole('button', { name: /2\. Bottom/ }).click();
   await expect(page.getByRole('button', { name: /2\. Bottom/ })).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => pixelSignature(canvas)).not.toBe(before);
+  await expect.poll(() => pixelSignature(canvas), RENDER_TIMEOUT).not.toBe(before);
+});
+
+test('Play animates the figure without errors and Pause stops it', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/ai_health/en/dev/figure-spike/');
+  await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator('svg.figure-overlay')).toBeVisible(); // frame 0 has been rendered
+  const canvas = page.locator('canvas.figure-canvas');
+  const before = await pixelSignature(canvas);
+
+  await page.getByRole('button', { name: en['figure.play'], exact: true }).click();
+  const pause = page.getByRole('button', { name: en['figure.pause'], exact: true });
+  await expect(pause).toBeVisible();
+  await page.waitForTimeout(1200); // about one segment of the loop
+  expect(errors).toEqual([]);
+  expect(await pixelSignature(canvas)).not.toBe(before);
+
+  await pause.click();
+  await expect(page.getByRole('button', { name: en['figure.play'], exact: true })).toBeVisible();
+  await expect(pause).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('Reset view restores the camera and the movement arrow', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/ai_health/en/dev/figure-spike/');
+  await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  const overlay = page.locator('svg.figure-overlay');
+  await expect(overlay).toBeVisible(); // frame 1 shows its arrow
+  const canvas = page.locator('canvas.figure-canvas');
+  const before = await pixelSignature(canvas);
+
+  await canvas.scrollIntoViewIfNeeded();
+  const box = (await canvas.boundingBox())!;
+  const [x, y] = [box.x + box.width / 2, Math.max(box.y, 0) + 100]; // a point inside the viewport
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 150, y, { steps: 10 });
+  await page.mouse.up();
+  await expect(overlay).toHaveCount(0, RENDER_TIMEOUT); // orbiting hides the arrow (it would no longer line up)
+  await expect.poll(() => pixelSignature(canvas), RENDER_TIMEOUT).not.toBe(before);
+
+  await page.getByRole('button', { name: en['figure.resetView'], exact: true }).click();
+  await expect(overlay).toBeVisible(RENDER_TIMEOUT);
+  await expect.poll(() => pixelSignature(canvas), RENDER_TIMEOUT).toBe(before);
+  expect(errors).toEqual([]);
 });
 
 test('shows the error state and fallback images when the model fails to load', async ({ page }) => {

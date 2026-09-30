@@ -5,11 +5,35 @@ import { ILLUSTRATIVE_SMITH } from '../geometry/smith';
 import { SMITH_SQUAT } from '../fixtures/smith-squat';
 import { syntheticSkeleton } from './synthetic';
 import { forwardKinematics, restPose } from './skeleton';
-import { solveSmithSquat } from './smithSquat';
+import { PLAY_ORDER } from './playOrder';
+import { interpolateFrame, solveSmithSquat } from './smithSquat';
 import { carriedBarCenter, jointAngles, validateSmithSquat } from './validate';
 
 const STATURES = [150, 165, 175, 190, 200];
 const BAR = SMITH_SQUAT.barRestOffsetCm;
+const IN_BETWEEN_T = [0.25, 0.5, 0.75];
+
+describe('interpolateFrame', () => {
+  const [top, bottom] = [SMITH_SQUAT.frames[0]!, SMITH_SQUAT.frames[1]!];
+  it('lerps the leg angles and keeps the first frame\'s other fields', () => {
+    const mid = interpolateFrame(top, bottom, 0.25);
+    expect(mid.shankDeg).toBeCloseTo(top.shankDeg + (bottom.shankDeg - top.shankDeg) * 0.25, 10);
+    expect(mid.thighDeg).toBeCloseTo(top.thighDeg + (bottom.thighDeg - top.thighDeg) * 0.25, 10);
+    expect(mid.label).toBe(top.label);
+    expect(mid.cue).toBe(top.cue);
+    expect(mid.arrow).toBe(top.arrow);
+    expect(mid.id).toBe(`${top.id}>${bottom.id}@0.25`);
+  });
+  it('returns the end frames\' angles at t = 0 and t = 1', () => {
+    expect(interpolateFrame(top, bottom, 0)).toMatchObject({ shankDeg: top.shankDeg, thighDeg: top.thighDeg });
+    expect(interpolateFrame(top, bottom, 1)).toMatchObject({ shankDeg: bottom.shankDeg, thighDeg: bottom.thighDeg });
+  });
+  it('loops Play through every keyframe and back to the start', () => {
+    expect(PLAY_ORDER[0]).toBe(0);
+    expect(PLAY_ORDER.at(-1)).toBe(0);
+    expect(new Set(PLAY_ORDER)).toEqual(new Set(SMITH_SQUAT.frames.map((_, i) => i)));
+  });
+});
 
 describe('solveSmithSquat', () => {
   it.each(STATURES)('produces valid frames at %i cm', (statureCm) => {
@@ -18,6 +42,19 @@ describe('solveSmithSquat', () => {
       const sol = solveSmithSquat(sk, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
       const findings = validateSmithSquat(sk, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: BAR });
       expect(findings, `${statureCm} cm / ${frame.id}`).toEqual([]);
+    }
+  });
+
+  it.each(STATURES)('produces valid in-between poses for every Play segment at %i cm', (statureCm) => {
+    const sk = syntheticSkeleton({ randomRestSeed: 5 });
+    for (let seg = 0; seg < PLAY_ORDER.length - 1; seg++) {
+      const [a, b] = [SMITH_SQUAT.frames[PLAY_ORDER[seg]!]!, SMITH_SQUAT.frames[PLAY_ORDER[seg + 1]!]!];
+      for (const t of IN_BETWEEN_T) {
+        const frame = interpolateFrame(a, b, t);
+        const sol = solveSmithSquat(sk, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
+        const findings = validateSmithSquat(sk, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: BAR });
+        expect(findings, `${statureCm} cm / ${frame.id}`).toEqual([]);
+      }
     }
   });
 

@@ -36,8 +36,8 @@ See [figure-pipeline.md](figure-pipeline.md) for the 3D figure layers, conventio
 | `npm run build:human` | Regenerate the 3D human (needs Blender and MPFB; see [figure-pipeline.md](figure-pipeline.md)) |
 | `npm run check` / `npm run lint` | Type check / lint |
 
-Astro 7 backgrounds `dev` and `preview` when it detects an AI agent. The scripts pass `--ignore-lock` to avoid that; stop a stray server with `npx astro dev stop`.
+Astro 7 backgrounds `dev` and `preview` when it detects an AI agent. Only the Playwright web server and `render:figures` pass `--ignore-lock` to avoid that. When you run `npm run dev` or `npm run preview` under an agent, add it yourself (`npm run dev -- --ignore-lock`). Stop a stray server with `npx astro dev stop` or `npx astro preview stop`.
 
 ## Deploy
 
-Pushing to `main` runs `.github/workflows/deploy.yml`, which installs Chromium, runs `npm run render:figures`, builds `dist/` and publishes it to GitHub Pages. CI (`.github/workflows/ci.yml`) does the same before the end-to-end tests.
+CI (`.github/workflows/ci.yml`) runs on every pull request and push to `main`: type check, lint, unit tests, `npm run render:figures`, build and the end-to-end tests. `.github/workflows/deploy.yml` runs only after CI succeeds for a push to `main`. It checks out the exact commit CI tested, installs Chromium, runs `npm run render:figures`, builds `dist/` and publishes it to GitHub Pages. It can also be started by hand (`workflow_dispatch`), which skips the wait for CI. CI never cancels a `main` run mid-run; runs queue, and a newer queued run supersedes an older one, so the newest commit on `main` always gets a deploy decision.

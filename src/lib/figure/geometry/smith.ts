@@ -25,7 +25,7 @@ export interface SmithParams {
 
 /**
  * Drawing defaults for generic pages — NOT measurements of anyone's machine. Pages label them
- * "illustrative" and feasibility checks never use them.
+ * "illustrative"; profile feasibility checks never use them (the figure sweep does, deliberately).
  */
 export const ILLUSTRATIVE_SMITH: SmithParams = {
   rackInnerWidthCm: 120,

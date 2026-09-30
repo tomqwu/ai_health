@@ -22,7 +22,7 @@
 - Pure layers (`src/lib/figure/math`, `src/lib/figure/pose`, `src/lib/figure/geometry`, `src/lib/i18n`, `src/lib/areas.ts`, `src/lib/site.ts`) must not import `three`, the DOM, or Astro modules. Only `src/lib/figure/scene3d/**` imports `three`.
 - Pose/geometry units are **centimetres** with glTF axes: **+Y up, +Z = the figure's facing direction, +X = the figure's LEFT**. The three.js scene uses metres (cm ÷ 100).
 - The human model is generated from CC0 MakeHuman assets only; the `.blend` is never committed; `public/models/human.glb` ≤ 8 MB.
-- Downloads of the MPFB extension (3 MB, extensions.blender.org) and `makehuman_system_assets_cc0.zip` (267 MB, files2.makehumancommunity.org) require the owner's explicit OK at execution time (Task 11 Step 1).
+- Downloads of the MPFB extension (about 43 MB, extensions.blender.org) and `makehuman_system_assets_cc0.zip` (267 MB, files2.makehumancommunity.org) require the owner's explicit OK at execution time (Task 11 Step 1).
 - Astro 7 auto-backgrounds `astro dev` / `astro preview` when it detects an AI agent. Anything that manages a server's lifetime (Playwright `webServer`, `scripts/render-figures.ts`) passes `--ignore-lock` to stay in the foreground. Stop a stray server with `npx astro dev stop` or `npx astro preview stop`.
 - Git: one branch + PR per issue, PR body contains `Closes #N`, squash-merge when CI is green; `gate:user-review` issues wait for the owner. Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; PR bodies end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 
@@ -2707,7 +2707,7 @@ gh pr merge --squash --delete-branch && git checkout main && git pull
 
 - [ ] **Step 1: STOP — ask the owner to approve the downloads**
 
-Ask in chat, verbatim: "Task 11 needs two downloads to generate the 3D human: the MPFB (MakeHuman) Blender extension, `add-on-mpfb-v2.0.17.zip`, about 3 MB, from extensions.blender.org; and `makehuman_system_assets_cc0.zip`, 267 MB, CC0-licensed, from files2.makehumancommunity.org. Both are used only on this Mac; neither is committed. OK to download?" Continue only after a clear yes.
+Ask in chat, verbatim: "Task 11 needs two downloads to generate the 3D human: the MPFB (MakeHuman) Blender extension, `add-on-mpfb-v2.0.17.zip`, about 43 MB, from extensions.blender.org; and `makehuman_system_assets_cc0.zip`, 267 MB, CC0-licensed, from files2.makehumancommunity.org. Both are used only on this Mac; neither is committed. OK to download?" Continue only after a clear yes.
 
 - [ ] **Step 2: Install tooling dependencies**
 

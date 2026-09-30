@@ -1,6 +1,5 @@
-import skeletonJson from '../pose/skeleton.json';
-import type { SkeletonDef } from '../pose/skeleton';
-import { solveSmithSquat, type SmithSquatFrame, type SmithSquatSolution, type SmithSquatSpec } from '../pose/smithSquat';
+import { REAL_SKELETON } from '../pose/realSkeleton';
+import { interpolateFrame, solveSmithSquat, type SmithSquatFrame, type SmithSquatSolution, type SmithSquatSpec } from '../pose/smithSquat';
 import { buildSmith, ILLUSTRATIVE_SMITH } from '../geometry/smith';
 import { barArrow } from '../overlay';
 import { buildEquipment, setBarHeight } from './equipment';
@@ -8,7 +7,6 @@ import { applyPose, loadHuman } from './human';
 import { createStage, disposeStage, type OrbitView, projectCm, renderStage, setOrbitView, type Stage } from './stage';
 
 export const DEFAULT_STATURE_CM = 175;
-export const SKELETON = skeletonJson as unknown as SkeletonDef;
 
 export interface FigureScene {
   stage: Stage;
@@ -29,7 +27,7 @@ export async function mountFigure(
   const { spec } = opts;
   const statureCm = opts.statureCm ?? DEFAULT_STATURE_CM;
   const smith = ILLUSTRATIVE_SMITH;
-  const solve = (frame: SmithSquatFrame) => solveSmithSquat(SKELETON, spec, frame, { statureCm, railZCm: smith.railZCm });
+  const solve = (frame: SmithSquatFrame) => solveSmithSquat(REAL_SKELETON, spec, frame, { statureCm, railZCm: smith.railZCm });
   const keyframes = spec.frames.map(solve);
   const lowestBar = Math.min(...keyframes.map((f) => f.barCenter[1]));
   const k = statureCm / DEFAULT_STATURE_CM;
@@ -65,16 +63,10 @@ export async function mountFigure(
     view,
     showFrame: (i) => show(keyframes[i]!),
     showBetween: (a, b, t) => {
-      const fa = spec.frames[a]!;
-      const fb = spec.frames[b]!;
-      return show(
-        solve({
-          ...fa,
-          id: `${fa.id}>${fb.id}`,
-          shankDeg: fa.shankDeg + (fb.shankDeg - fa.shankDeg) * t,
-          thighDeg: fa.thighDeg + (fb.thighDeg - fa.thighDeg) * t,
-        }),
-      );
+      const n = spec.frames.length;
+      const valid = (i: number) => Number.isInteger(i) && i >= 0 && i < n;
+      if (!valid(a) || !valid(b)) throw new RangeError(`showBetween(${a}, ${b}): frame indices must be integers in 0..${n - 1}`);
+      return show(solve(interpolateFrame(spec.frames[a]!, spec.frames[b]!, t)));
     },
     arrow: (i) => {
       const a = barArrow(spec.frames[i]?.arrow, keyframes[i]!.barCenter, smith);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { arrowPaths } from '../../lib/figure/arrow';
+import { PLAY_ORDER } from '../../lib/figure/pose/playOrder';
 import type { SmithSquatSpec } from '../../lib/figure/pose/smithSquat';
 import type { FigureScene } from '../../lib/figure/scene3d/figureScene';
 import { t } from '../../lib/i18n';
@@ -24,7 +25,6 @@ function hasWebgl(): boolean {
   return Boolean(gl);
 }
 
-const PLAY_ORDER = [0, 1, 2, 0];
 const SEGMENT_MS = 1200;
 
 export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: Props) {
@@ -42,11 +42,13 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
     let sceneDisposed = false;
     let scene: FigureScene | undefined;
     let controls: { dispose(): void } | undefined;
+    let orbitFrame = 0; // pending requestAnimationFrame id for an orbit re-render, 0 if none
     // Disposal tracks the scene, not the effect: a no-op until mountFigure has produced a scene,
     // then idempotent, so the scene (and controls, if created) are released exactly once.
     const disposeScene = () => {
       if (!scene || sceneDisposed) return;
       sceneDisposed = true;
+      cancelAnimationFrame(orbitFrame);
       controls?.dispose();
       scene.dispose();
     };
@@ -78,12 +80,21 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
         orbit.maxDistance = 9;
         orbit.update();
         orbit.saveState();
+        // A drag fires 'change' on every pointermove; render at most once per animation frame so a slow
+        // GPU (or software WebGL) never queues up a backlog of renders on the main thread.
         orbit.addEventListener('change', () => {
-          mounted.render();
           setArrow(null);
+          if (!orbitFrame) {
+            orbitFrame = requestAnimationFrame(() => {
+              orbitFrame = 0;
+              mounted.render();
+            });
+          }
         });
         resetRef.current = () => {
           orbit.reset();
+          cancelAnimationFrame(orbitFrame); // render now instead
+          orbitFrame = 0;
           mounted.render();
         };
         sceneRef.current = mounted;
@@ -116,9 +127,12 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
     if (!playing || !scene) return;
     setArrow(null);
     let raf = 0;
-    const start = performance.now();
+    // Time from the first rAF timestamp, not performance.now(): rAF passes the frame's start time,
+    // which can be earlier than "now" in this effect and would make `total` negative.
+    let start: number | undefined;
     const tick = (now: number) => {
-      const total = (now - start) / SEGMENT_MS;
+      start ??= now;
+      const total = Math.max(0, (now - start) / SEGMENT_MS);
       const seg = Math.floor(total) % (PLAY_ORDER.length - 1);
       const eased = 0.5 - Math.cos(Math.PI * (total - Math.floor(total))) / 2;
       scene.showBetween(PLAY_ORDER[seg]!, PLAY_ORDER[seg + 1]!, eased);
@@ -176,7 +190,15 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
         <button type="button" disabled={status !== 'ready'} onClick={() => setPlaying((p) => !p)}>
           {playing ? t(lang, 'figure.pause') : t(lang, 'figure.play')}
         </button>
-        <button type="button" disabled={status !== 'ready'} onClick={() => resetRef.current()}>
+        <button
+          type="button"
+          disabled={status !== 'ready'}
+          onClick={() => {
+            resetRef.current(); // OrbitControls' change event clears the arrow
+            const scene = sceneRef.current;
+            if (scene && !playing) setArrow(scene.arrow(frame)); // the camera is back where the arrow lines up
+          }}
+        >
           {t(lang, 'figure.resetView')}
         </button>
       </div>

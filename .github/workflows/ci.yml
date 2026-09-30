@@ -3,9 +3,12 @@ on:
   pull_request:
   push:
     branches: [main]
+permissions:
+  contents: read
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded PR runs are cancelled. Runs on main are never cancelled mid-run; they queue, and a newer queued run supersedes an older one.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
     runs-on: ubuntu-latest
