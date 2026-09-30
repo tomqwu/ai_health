@@ -1,7 +1,7 @@
 import { FIGURES } from '../figure/fixtures';
 import { paramValueMatches } from './params';
 import { type Attachment, type Equipment, type Exercise, type Template, slotPatterns } from './schemas';
-import { GEOMETRY_PARAMS } from './vocab';
+import { CAPABILITY_GEOMETRY_PARAMS, GEOMETRY_PARAM_TYPES, GEOMETRY_PARAMS, type GeometryParam } from './vocab';
 
 /** All generic content, validated and cross-checked. The engine only ever sees this. */
 export interface Catalog {
@@ -58,10 +58,26 @@ export function buildCatalog(input: CatalogInput, opts: CatalogOptions = {}): Ca
       if (!def) problems.push(`equipment "${eq.id}": illustrative default "${name}" is not a parameter`);
       else if (!paramValueMatches(def, value)) problems.push(`equipment "${eq.id}": illustrative default "${name}" is not a valid ${def.type}`);
     }
-    // D12: the engine uses the typical value whenever the user has not measured, so it must exist.
+    // D12: the engine uses the typical value whenever the user has not measured, so it must exist and have
+    // the type the checks read.
     for (const name of GEOMETRY_PARAMS) {
-      if (eq.parameters[name] && eq.illustrativeDefaults[name] === undefined) {
+      const def = eq.parameters[name];
+      if (def && def.type !== GEOMETRY_PARAM_TYPES[name]) {
+        problems.push(`equipment "${eq.id}": geometry parameter "${name}" must be of type ${GEOMETRY_PARAM_TYPES[name]}, not ${def.type}`);
+      }
+      if (def && eq.illustrativeDefaults[name] === undefined) {
         problems.push(`equipment "${eq.id}": parameter "${name}" is read by the geometry checks and needs an illustrative default`);
+      }
+    }
+    // Fail safe: equipment providing a capability the geometry checks depend on must define their inputs.
+    const needed = new Map<GeometryParam, string[]>();
+    for (const cap of eq.capabilities) {
+      if (!Object.hasOwn(CAPABILITY_GEOMETRY_PARAMS, cap)) continue;
+      for (const name of CAPABILITY_GEOMETRY_PARAMS[cap]!) needed.set(name, [...(needed.get(name) ?? []), cap]);
+    }
+    for (const [name, caps] of needed) {
+      if (!eq.parameters[name]) {
+        problems.push(`equipment "${eq.id}": provides "${caps.join('", "')}", so it must define the geometry parameter "${name}" with an illustrative default`);
       }
     }
   }

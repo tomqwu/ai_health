@@ -122,3 +122,23 @@ export type LoadUnit = (typeof LOAD_UNITS)[number];
  */
 export const GEOMETRY_PARAMS = ['smithLowestBarHeightCm', 'smithHighestBarHeightCm', 'pullUpBarHeightCm', 'benchFitsInsideRack'] as const;
 export type GeometryParam = (typeof GEOMETRY_PARAMS)[number];
+
+/** The parameter type each geometry parameter must be declared with, so its typical value is usable. */
+export const GEOMETRY_PARAM_TYPES: Readonly<Record<GeometryParam, 'cm' | 'bool'>> = {
+  smithLowestBarHeightCm: 'cm',
+  smithHighestBarHeightCm: 'cm',
+  pullUpBarHeightCm: 'cm',
+  benchFitsInsideRack: 'bool',
+};
+
+/**
+ * Geometry parameters that equipment providing a capability must define, with an illustrative default: the
+ * Smith bar's stops (bar travel), whether a bench fits between the uprights of a rack station (bench fit),
+ * and the pull-up bar height (ceiling). buildCatalog enforces it, so an owned capability always has the
+ * values its checks read (spec §7.1 check 4, D12).
+ */
+export const CAPABILITY_GEOMETRY_PARAMS: Readonly<Record<string, readonly GeometryParam[]>> = {
+  'smith-bar': ['smithLowestBarHeightCm', 'smithHighestBarHeightCm', 'benchFitsInsideRack'],
+  'rack-uprights': ['benchFitsInsideRack'],
+  'pull-up-bar': ['pullUpBarHeightCm'],
+};

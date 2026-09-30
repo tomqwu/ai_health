@@ -65,7 +65,7 @@ The owner approved the draft's 16 open questions as proposed, except where spec 
 
 **D12 applied (equipment measurements are never required):**
 - Unknown stature → `TYPICAL_STATURE_CM = 175`. Unknown ceiling → `ASSUMED_CEILING_CM = 240`; an exercise whose envelope plus margin exceeds it stays feasible and carries the note `engine.note.checkClearance` (EN + 中文). A *measured* ceiling that is too low still makes the exercise infeasible.
-- An unmeasured (or wrongly typed) equipment parameter → the equipment's `illustrativeDefaults`. The catalog requires an illustrative default for every parameter the geometry checks read (`GEOMETRY_PARAMS`), so no check lacks an input.
+- An unmeasured (or wrongly typed) equipment parameter → the equipment's `illustrativeDefaults`. The catalog requires an illustrative default of the right type for every parameter the geometry checks read (`GEOMETRY_PARAMS`, `GEOMETRY_PARAM_TYPES`), and requires equipment providing `smith-bar`, `rack-uprights` or `pull-up-bar` to define the parameters those checks read (`CAPABILITY_GEOMETRY_PARAMS`, Task 8). If a Smith stop or the bench-fit answer still cannot be resolved, the check fails safe (`engine.reason.stopsUnknown` / `engine.reason.benchFitUnknown`): an exercise that may not fit is never silently allowed.
 - `needs-info` is dropped (YAGNI; nothing in v1 needs it): `FeasibilityStatus = 'feasible' | 'infeasible'`, and there is no `MissingInfo`, `Feasibility.missing`, `measure` unlock, `SlotPlan.needsInfo` or `engine.missing.*` string. `Feasibility.notes` carries non-blocking notes instead.
 - `buildWeek` returns `Week.assumptions`: localizable messages saying the plan uses a typical height or an assumed ceiling (spec §7.1: checks say "typical height").
 - No hole numbers: the `holes` and `holes-range` parameter types and the `holeNumbering` and `pulleyHoleRange` parameters are gone. Because nothing is required, the parameter definition's `optional` flag is gone too.
@@ -1268,6 +1268,8 @@ Per-entry schemas cannot see other entries. `buildCatalog` indexes all content a
 
 Checks: duplicate ids; illustrative defaults name a parameter and match its type; every parameter the geometry checks read (`GEOMETRY_PARAMS`) has an illustrative default, so the engine always has a typical value (D12); attachment `fits` and exercise `requires.capabilities` are provided by some equipment; required attachments exist; attachment uses are declared and valid; alternatives exist; `figure.spec` exists in `FIGURES`; every template slot has at least one exercise of its pattern(s).
 
+Task 8 (fail safe) adds two equipment rules to `buildCatalog`: a geometry parameter must have the type the checks read (`GEOMETRY_PARAM_TYPES`), and equipment providing `smith-bar`, `rack-uprights` or `pull-up-bar` must define the geometry parameters those capabilities need (`CAPABILITY_GEOMETRY_PARAMS`), each with an illustrative default. The code below is the Task 4 version; Task 8 Step 6 shows the additions and the updated `catalog.test.ts` fixture.
+
 - [ ] **Step 1: Branch**
 
 ```bash
@@ -1538,7 +1540,7 @@ export function buildCatalog(input: CatalogInput, opts: CatalogOptions = {}): Ca
 - [ ] **Step 5: Run the tests and the checks**
 
 Run: `npx vitest run src/lib/content && npm run lint && npm run check`
-Expected: `catalog.test.ts` 9 passed (33 in `src/lib/content`); 0 lint and type errors.
+Expected: `catalog.test.ts` 9 passed (33 in `src/lib/content`); 0 lint and type errors. (After Task 8's additions: 22 passed, 46 in `src/lib/content`.)
 
 - [ ] **Step 6: Commit, open the PR, merge when CI is green**
 
@@ -1559,7 +1561,7 @@ When CI is green: `gh pr merge --squash --delete-branch && git checkout main && 
 
 Wires the schemas into Astro content collections, adds the first generic content, and makes `npm run build` fail on any content error (spec §14: "Build (Zod + cross-reference checks)").
 
-Seed content is deliberately small (owner decision 14): the three equipment classes the engine tests need, all seven v1 attachments and the M1 exercise. Illustrative defaults describe the same typical machine as `ILLUSTRATIVE_SMITH` in `src/lib/figure/geometry/smith.ts` (what the figures draw); the Smith stops use its datum, floor to the centre of the bar, so the typical 40 / 180 cm equal `ILLUSTRATIVE_SMITH.lowestBarHeightCm` / `highestBarHeightCm`. Every parameter in `GEOMETRY_PARAMS` has one, because the engine uses them whenever the user has not measured (D12). Setups are described in words only: there is no `holeNumbering` or `pulleyHoleRange` parameter (D12). The `templates` collection stays empty until M5, so the build logs two expected warnings (`No files found matching "*.yaml" in directory "src/content/templates"` and `The collection "templates" does not exist or is empty`).
+Seed content is deliberately small (owner decision 14): the three equipment classes the engine tests need, all seven v1 attachments and the M1 exercise. Illustrative defaults describe the same typical machine as `ILLUSTRATIVE_SMITH` in `src/lib/figure/geometry/smith.ts` (what the figures draw); the Smith stops use its datum, floor to the centre of the bar, so the typical 40 / 180 cm equal `ILLUSTRATIVE_SMITH.lowestBarHeightCm` / `highestBarHeightCm`. Every parameter in `GEOMETRY_PARAMS` has one, because the engine uses them whenever the user has not measured (D12); the Smith station defines all four, as Task 8's capability rule requires of equipment providing `smith-bar`, `rack-uprights` and `pull-up-bar`. Setups are described in words only: there is no `holeNumbering` or `pulleyHoleRange` parameter (D12). The `templates` collection stays empty until M5, so the build logs two expected warnings (`No files found matching "*.yaml" in directory "src/content/templates"` and `The collection "templates" does not exist or is empty`).
 
 **Files:**
 - Create: `src/content.config.ts`, `src/catalog.ts`
@@ -2831,17 +2833,22 @@ Spec §7.1 check 4 with the D12 rules for unknown inputs: an unknown stature pos
 
 Owner decisions 3 and 7: exercises without a probe (everything except the Smith squat until M3) use a conservative stature-based envelope (standing = stature; `vertical-push` = 1.33 × stature; with a pull-up bar = bar height + 0.13 × stature) and no ROM check. Exercises that move a Smith bar are never planned without a probe (`engine.reason.noGeometryModel`). Bench fit applies when an exercise uses a bench angle at a rack station (`smith`, `barbell`). A *measured* ceiling that is too low still fails the ceiling check.
 
+Fail safe: an exercise that genuinely doesn't fit must be infeasible, never silently allowed. If a Smith stop or the bench-fit answer has no usable value (neither a valid measurement nor a typical value of the right type), the check fails with `engine.reason.stopsUnknown` (`bar-travel`) or `engine.reason.benchFitUnknown` (`bench-fit`) instead of being skipped; a probe that reports no bar heights gives `noGeometryModel`. `buildCatalog` closes the gap at build time (Step 6), so for owned equipment in a valid catalog these reasons are unreachable; the engine still handles them because `checkGeometry` is callable on its own and a thrown error would break the whole page. Bar heights in the stop messages are rounded outward (`Math.floor` below, `Math.ceil` above) so a bar just past a stop never reads as the stop itself.
+
 This task also adds the shared engine types, parameter lookup and the synthetic fixtures every later engine test uses. Every fixture value is invented (spec §13); the tall-enough room is a standard 8 ft ceiling.
 
 **Files:**
 - Create: `src/lib/engine/types.ts`, `src/lib/engine/params.ts`, `src/lib/engine/geometry.ts`, `src/lib/engine/testing/fixtures.ts`
-- Test: `src/lib/engine/geometry.test.ts`
+- Modify: `src/lib/content/vocab.ts`, `src/lib/content/catalog.ts`, `src/lib/i18n/en.ts`, `src/lib/i18n/zh.ts`
+- Test: `src/lib/engine/geometry.test.ts`, `src/lib/content/catalog.test.ts`
 
 **Interfaces:**
 - Consumes: Tasks 1–3 and 6 (`Catalog`, `Exercise`, `ParamValue`, `paramValueMatches`, `GEOMETRY_PARAMS`/`GeometryParam`, `RACK_STATIONS`, `Profile`, `defaultProfile`, `Message`).
 - Produces:
   - `types.ts`: `FeasibilityStatus = 'feasible' | 'infeasible'`, `CheckId`, `Unlock` (`equipment` | `attachment` | `exclusion`), `Reason = { check; message: Message; unlock? }`, `Feasibility = { status; reasons; notes: Message[] }`.
   - `params.ts`: `paramValue(profile, catalog, name: GeometryParam): ParamValue | undefined` (the user's valid measurement, else the illustrative default), `numberParam(…)`, `boolParam(…)`, `ownedCapabilities(profile, catalog)`, `providersOf(catalog, capabilities)`.
+  - `vocab.ts`: `GEOMETRY_PARAM_TYPES: Record<GeometryParam, 'cm' | 'bool'>`, `CAPABILITY_GEOMETRY_PARAMS: Record<string, readonly GeometryParam[]>` (`smith-bar` → both stops and `benchFitsInsideRack`; `rack-uprights` → `benchFitsInsideRack`; `pull-up-bar` → `pullUpBarHeightCm`).
+  - i18n: `engine.reason.stopsUnknown`, `engine.reason.benchFitUnknown` (EN + 中文).
   - `geometry.ts`: `TYPICAL_STATURE_CM = 175`, `ASSUMED_CEILING_CM = 240`, `OVERHEAD_REACH_RATIO = 1.33`, `HEAD_ABOVE_BAR_RATIO = 0.13`, `ProbeInput = { statureCm }`, `ProbeResult = { topCm; barCentersCm?; rom; posing }`, `GeometryProbe`, `ProbeRegistry` (keyed by `exercise.figure.spec`), `GeometryOutcome = { reasons; notes }`, `benchInRack(ex)`, `statureFor(profile)`, `assumptions(profile): Message[]`, `checkGeometry(ex, profile, catalog, probes)`.
   - `testing/fixtures.ts`: `EIGHT_FT_CEILING_CM` (243.84), `SYN_EQUIPMENT`, `SYN_ATTACHMENTS`, `syntheticExercise(over)`, `SYN_EXERCISES` (14 exercises), `SYN_TEMPLATE` (`syn-3day`: mon push, tue legs, wed cardio, thu full body, sun rest), `syntheticCatalog(over?)`, and profiles `fullHomeGym()`, `dumbbellsOnly()`, `nothingMeasured()`, `lowCeiling()`.
 
@@ -2851,7 +2858,18 @@ This task also adds the shared engine types, parameter lookup and the synthetic 
 git checkout main && git pull && git checkout -b m2/<issue>-engine-geometry
 ```
 
-- [ ] **Step 2: Add the shared types, parameter lookup and fixtures**
+- [ ] **Step 2: Add the shared types, parameter lookup, fixtures and fail-safe messages**
+
+Add to `src/lib/i18n/en.ts` after `engine.reason.benchFit`:
+```ts
+  'engine.reason.benchFitUnknown': 'It is not known whether your bench fits inside the rack, so this exercise cannot be checked',
+  'engine.reason.stopsUnknown': "The Smith bar's stop heights are not known for your equipment, so the bar's travel cannot be checked",
+```
+and to `src/lib/i18n/zh.ts`:
+```ts
+  'engine.reason.benchFitUnknown': '无法确定你的训练凳能否放进架子内，因此无法检查这个动作',
+  'engine.reason.stopsUnknown': '缺少你的器械上史密斯杠的限位高度，因此无法检查杠铃的行程',
+```
 
 `src/lib/engine/types.ts`:
 ```ts
@@ -2899,8 +2917,10 @@ import type { Profile } from '../profile/schema';
 /**
  * The value the geometry checks use for parameter `name` (D12): the user's own measurement when it is stored
  * with the right shape, otherwise the illustrative default of the owned equipment that defines the
- * parameter. Undefined only when no owned equipment defines it (buildCatalog guarantees a default for
- * every geometry parameter an equipment defines).
+ * parameter. Undefined when no owned equipment defines it. buildCatalog guarantees a typical value of the
+ * right type for every geometry parameter an equipment defines, and that equipment providing a capability
+ * the checks depend on defines its parameters (`CAPABILITY_GEOMETRY_PARAMS`); the checks still fail safe on
+ * undefined.
  */
 export function paramValue(profile: Profile, catalog: Catalog, name: GeometryParam): ParamValue | undefined {
   for (const owned of profile.equipment) {
@@ -3127,8 +3147,9 @@ export function lowCeiling(): Profile {
 `src/lib/engine/geometry.test.ts`:
 ```ts
 import { describe, expect, it } from 'vitest';
+import type { Equipment } from '../content/schemas';
 import type { Profile } from '../profile/schema';
-import { ASSUMED_CEILING_CM, assumptions, checkGeometry, type GeometryProbe, type ProbeRegistry, TYPICAL_STATURE_CM } from './geometry';
+import { ASSUMED_CEILING_CM, assumptions, checkGeometry, type GeometryProbe, type ProbeRegistry } from './geometry';
 import { EIGHT_FT_CEILING_CM, fullHomeGym, lowCeiling, nothingMeasured, SYN_EQUIPMENT, syntheticCatalog } from './testing/fixtures';
 
 const catalog = syntheticCatalog();
@@ -3150,6 +3171,11 @@ const withParams = (p: Profile, params: Record<string, unknown>): Profile => ({
   equipment: p.equipment.map((e) => (e.id === 'smith-functional-trainer' ? { ...e, params: { ...e.params, ...params } as typeof e.params } : e)),
 });
 const noCeiling = (p: Profile): Profile => ({ ...p, room: { clearanceMarginCm: 10 } });
+const tall = (statureCm: number, p: Profile = fullHomeGym()): Profile => ({ ...p, statureCm });
+/** The synthetic catalog with the Smith station's content changed (not validated by buildCatalog). */
+const smithCatalog = (change: (e: Equipment) => Partial<Equipment>) =>
+  syntheticCatalog({ equipment: SYN_EQUIPMENT.map((e) => (e.id === 'smith-functional-trainer' ? { ...e, ...change(e) } : e)) });
+const without = <V>(o: Readonly<Record<string, V>>, name: string) => Object.fromEntries(Object.entries(o).filter(([k]) => k !== name));
 const checks = (o: ReturnType<typeof checkGeometry>) => o.reasons.map((r) => r.check);
 
 describe('checkGeometry', () => {
@@ -3165,7 +3191,16 @@ describe('checkGeometry', () => {
         return fixed()(input);
       };
       expect(checkGeometry(ex('smith-squat'), nothingMeasured(), catalog, smithProbes(probe))).toEqual(PASS);
-      expect(seen).toEqual([TYPICAL_STATURE_CM]);
+      expect(seen).toEqual([175]);
+    });
+    it("poses at the user's own height when it is entered", () => {
+      const seen: number[] = [];
+      const probe: GeometryProbe = (input) => {
+        seen.push(input.statureCm);
+        return fixed()(input);
+      };
+      expect(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(probe))).toEqual(PASS);
+      expect(seen).toEqual([172]);
     });
     it('says which typical values stand in for unknown inputs', () => {
       expect(assumptions(fullHomeGym())).toEqual([]);
@@ -3229,6 +3264,24 @@ describe('checkGeometry', () => {
       // standing: 188 + 10 ≤ 225
       expect(checkGeometry(ex('goblet-squat'), lowCeiling(), catalog, {})).toEqual(PASS);
     });
+    it("uses the user's own height, not the typical one", () => {
+      // tall: 1.33 × 180 + 10 = 249.4 → 250 > 243.84, although the typical 175 cm gives 243 ≤ 243.84
+      expect(checks(checkGeometry(ex('db-shoulder-press'), tall(180), catalog, {}))).toEqual(['ceiling']);
+      expect(checkGeometry(ex('db-shoulder-press'), tall(175), catalog, {})).toEqual(PASS);
+      // short, no ceiling entered: 1.33 × 165 + 10 = 229.45 → 230 ≤ 240 assumed, so no clearance note,
+      // although the typical 175 cm needs 243 and gets one
+      expect(checkGeometry(ex('db-shoulder-press'), tall(165, noCeiling(fullHomeGym())), catalog, {})).toEqual(PASS);
+      expect(checkGeometry(ex('db-shoulder-press'), tall(175, noCeiling(fullHomeGym())), catalog, {}).notes.map((n) => n.key)).toEqual([
+        'engine.note.checkClearance',
+      ]);
+      // top of a pull-up for a tall user: 210 + 0.13 × 190 + 10 = 244.7 → 245 > 243.84; typical: 243 fits
+      expect(checks(checkGeometry(ex('pull-up'), tall(190), catalog, {}))).toEqual(['ceiling']);
+      expect(checkGeometry(ex('pull-up'), tall(175), catalog, {})).toEqual(PASS);
+    });
+    it('passes when the need equals a measured ceiling', () => {
+      const p: Profile = { ...fullHomeGym(), room: { ceilingHeightCm: 240, clearanceMarginCm: 10 } };
+      expect(checkGeometry(ex('smith-squat'), p, catalog, smithProbes(fixed({ topCm: 230 })))).toEqual(PASS);
+    });
     it('uses the pull-up bar height, measured or typical, for hanging exercises', () => {
       // typical bar: 210 + 0.13 × 172 + 10 = 242.36 ≤ 243.84
       expect(checkGeometry(ex('pull-up'), fullHomeGym(), catalog, {})).toEqual(PASS);
@@ -3268,8 +3321,40 @@ describe('checkGeometry', () => {
       expect(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, probes).reasons.map((r) => r.message)).toEqual([
         { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: 42 }, stop: { lengthCm: 45 } } },
       ]);
-      // not a number: the typical 40 cm applies
-      expect(checkGeometry(ex('smith-squat'), withParams(fullHomeGym(), { smithLowestBarHeightCm: 'low' }), catalog, probes)).toEqual(PASS);
+      // not a number: the typical 40 cm applies, and a bar at 35 cm is still checked against it
+      const wrongType = withParams(fullHomeGym(), { smithLowestBarHeightCm: 'low' });
+      expect(checkGeometry(ex('smith-squat'), wrongType, catalog, smithProbes(fixed({ barCentersCm: [35, 150] }))).reasons).toEqual([
+        { check: 'bar-travel', message: { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: 35 }, stop: { lengthCm: 40 } } } },
+      ]);
+    });
+    it('passes a bar that reaches a stop exactly', () => {
+      expect(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(fixed({ barCentersCm: [45, 185] })))).toEqual(PASS);
+    });
+    it('reports bar heights rounded outward, so the height never reads as the stop itself', () => {
+      const o = checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(fixed({ barCentersCm: [44.6, 185.4] })));
+      expect(o.reasons.map((r) => r.message.params?.height)).toEqual([{ lengthCm: 44 }, { lengthCm: 186 }]);
+    });
+    it('refuses a probe that reports no bar heights', () => {
+      const noModel = [{ check: 'bar-travel', message: { key: 'engine.reason.noGeometryModel' } }];
+      expect(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(fixed({ barCentersCm: [] }))).reasons).toEqual(noModel);
+      expect(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(fixed({ barCentersCm: undefined }))).reasons).toEqual(noModel);
+    });
+    it('fails safe when a stop has neither a measured nor a usable typical value', () => {
+      const unknown = [{ check: 'bar-travel', message: { key: 'engine.reason.stopsUnknown' } }];
+      const run = (c: ReturnType<typeof syntheticCatalog>, p: Profile = nothingMeasured()) =>
+        checkGeometry(ex('smith-squat'), p, c, smithProbes()).reasons;
+      // the equipment does not define the highest stop
+      const undefinedStop = smithCatalog((e) => ({
+        parameters: without(e.parameters, 'smithHighestBarHeightCm'),
+        illustrativeDefaults: without(e.illustrativeDefaults, 'smithHighestBarHeightCm'),
+      }));
+      expect(run(undefinedStop)).toEqual(unknown);
+      // a typical value of the wrong type
+      expect(run(smithCatalog((e) => ({ illustrativeDefaults: { ...e.illustrativeDefaults, smithLowestBarHeightCm: true } })))).toEqual(unknown);
+      // no owned equipment defines the stops
+      expect(run(catalog, { ...fullHomeGym(), equipment: fullHomeGym().equipment.filter((e) => e.id !== 'smith-functional-trainer') })).toEqual(
+        unknown,
+      );
     });
   });
 
@@ -3279,9 +3364,27 @@ describe('checkGeometry', () => {
       expect(run(fullHomeGym())).toEqual(PASS);
       expect(checks(run(withParams(fullHomeGym(), { benchFitsInsideRack: false })))).toEqual(['bench-fit']);
     });
-    it('does not apply to bench work outside the rack', () => {
+    it('uses a typical answer of "does not fit" when there is no answer', () => {
+      const doesNotFit = smithCatalog((e) => ({ illustrativeDefaults: { ...e.illustrativeDefaults, benchFitsInsideRack: false } }));
+      const run = (p: Profile) => checkGeometry(ex('smith-bench-press'), p, doesNotFit, smithProbes()).reasons;
+      expect(run(nothingMeasured())).toEqual([{ check: 'bench-fit', message: { key: 'engine.reason.benchFit' } }]);
+      expect(run(withParams(nothingMeasured(), { benchFitsInsideRack: true }))).toEqual([]);
+    });
+    it('fails safe when there is neither an answer nor a usable typical one', () => {
+      const unknown = [{ check: 'bench-fit', message: { key: 'engine.reason.benchFitUnknown' } }];
+      const run = (c: ReturnType<typeof syntheticCatalog>) => checkGeometry(ex('smith-bench-press'), nothingMeasured(), c, smithProbes()).reasons;
+      const undefinedFit = smithCatalog((e) => ({
+        parameters: without(e.parameters, 'benchFitsInsideRack'),
+        illustrativeDefaults: without(e.illustrativeDefaults, 'benchFitsInsideRack'),
+      }));
+      expect(run(undefinedFit)).toEqual(unknown);
+      expect(run(smithCatalog((e) => ({ illustrativeDefaults: { ...e.illustrativeDefaults, benchFitsInsideRack: 'yes' } })))).toEqual(unknown);
+    });
+    it('does not apply to bench work outside the rack, or to rack work without a bench', () => {
       const p = withParams(fullHomeGym(), { benchFitsInsideRack: false });
       expect(checkGeometry(ex('db-bench-press'), p, catalog, {})).toEqual(PASS);
+      // the pull-up is at the Smith station but uses no bench
+      expect(checkGeometry(ex('pull-up'), p, catalog, {})).toEqual(PASS);
     });
   });
 });
@@ -3376,7 +3479,8 @@ function envelopeTopCm(ex: Exercise, statureCm: number, profile: Profile, catalo
 /**
  * Spec §7.1 check 4: ceiling clearance, Smith bar travel, bench fit and joint range of motion. Unknown
  * inputs use typical values (D12): stature 175 cm, the equipment's illustrative defaults, and an assumed
- * 240 cm ceiling that adds a clearance note instead of failing.
+ * 240 cm ceiling that adds a clearance note instead of failing. A Smith stop or bench-fit answer with no
+ * usable value at all (buildCatalog prevents this for owned equipment) fails the check instead of skipping it.
  */
 export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, probes: ProbeRegistry): GeometryOutcome {
   const reasons: Reason[] = [];
@@ -3414,29 +3518,39 @@ export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, 
     });
   }
 
-  // Smith bar travel versus the stops (measured, else typical); both are bar-centre heights.
+  // Smith bar travel versus the stops (measured, else typical); both are bar-centre heights. The guard above
+  // ensures the probe reported bar heights. A stop that cannot be resolved fails safe: without it the bar's
+  // travel cannot be checked, so the exercise is never silently allowed.
   if (movesSmithBar && probed?.barCentersCm) {
-    const low = Math.min(...probed.barCentersCm);
-    const high = Math.max(...probed.barCentersCm);
     const lowestCm = numberParam(profile, catalog, 'smithLowestBarHeightCm');
     const highestCm = numberParam(profile, catalog, 'smithHighestBarHeightCm');
-    if (lowestCm !== undefined && low < lowestCm) {
-      reasons.push({
-        check: 'bar-travel',
-        message: { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: Math.round(low) }, stop: { lengthCm: lowestCm } } },
-      });
-    }
-    if (highestCm !== undefined && high > highestCm) {
-      reasons.push({
-        check: 'bar-travel',
-        message: { key: 'engine.reason.barAboveStop', params: { height: { lengthCm: Math.round(high) }, stop: { lengthCm: highestCm } } },
-      });
+    if (lowestCm === undefined || highestCm === undefined) {
+      reasons.push({ check: 'bar-travel', message: { key: 'engine.reason.stopsUnknown' } });
+    } else {
+      // Rounded outward, so a bar 0.4 cm past a stop never reads as the stop itself.
+      const low = Math.min(...probed.barCentersCm);
+      const high = Math.max(...probed.barCentersCm);
+      if (low < lowestCm) {
+        reasons.push({
+          check: 'bar-travel',
+          message: { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: Math.floor(low) }, stop: { lengthCm: lowestCm } } },
+        });
+      }
+      if (high > highestCm) {
+        reasons.push({
+          check: 'bar-travel',
+          message: { key: 'engine.reason.barAboveStop', params: { height: { lengthCm: Math.ceil(high) }, stop: { lengthCm: highestCm } } },
+        });
+      }
     }
   }
 
-  // Bench between the uprights (the user's answer, else the typical one).
-  if (benchInRack(ex) && boolParam(profile, catalog, 'benchFitsInsideRack') === false) {
-    reasons.push({ check: 'bench-fit', message: { key: 'engine.reason.benchFit' } });
+  // Bench between the uprights (the user's answer, else the typical one). An answer that cannot be resolved
+  // fails safe.
+  if (benchInRack(ex)) {
+    const fits = boolParam(profile, catalog, 'benchFitsInsideRack');
+    if (fits === undefined) reasons.push({ check: 'bench-fit', message: { key: 'engine.reason.benchFitUnknown' } });
+    else if (!fits) reasons.push({ check: 'bench-fit', message: { key: 'engine.reason.benchFit' } });
   }
 
   // Joint range of motion at this stature.
@@ -3446,15 +3560,138 @@ export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, 
 }
 ```
 
-- [ ] **Step 6: Run the tests and the checks**
+- [ ] **Step 6: Fail safe at build time: capability rules in `buildCatalog`**
 
-Run: `npx vitest run src/lib/engine && npm run lint && npm run check`
-Expected: `geometry.test.ts` 17 passed; 0 lint and type errors.
+Append to `src/lib/content/vocab.ts`:
+```ts
+/** The parameter type each geometry parameter must be declared with, so its typical value is usable. */
+export const GEOMETRY_PARAM_TYPES: Readonly<Record<GeometryParam, 'cm' | 'bool'>> = {
+  smithLowestBarHeightCm: 'cm',
+  smithHighestBarHeightCm: 'cm',
+  pullUpBarHeightCm: 'cm',
+  benchFitsInsideRack: 'bool',
+};
 
-- [ ] **Step 7: Commit, open the PR, merge when CI is green**
+/**
+ * Geometry parameters that equipment providing a capability must define, with an illustrative default: the
+ * Smith bar's stops (bar travel), whether a bench fits between the uprights of a rack station (bench fit),
+ * and the pull-up bar height (ceiling). buildCatalog enforces it, so an owned capability always has the
+ * values its checks read (spec §7.1 check 4, D12).
+ */
+export const CAPABILITY_GEOMETRY_PARAMS: Readonly<Record<string, readonly GeometryParam[]>> = {
+  'smith-bar': ['smithLowestBarHeightCm', 'smithHighestBarHeightCm', 'benchFitsInsideRack'],
+  'rack-uprights': ['benchFitsInsideRack'],
+  'pull-up-bar': ['pullUpBarHeightCm'],
+};
+```
+
+In `src/lib/content/catalog.test.ts`, import `GEOMETRY_PARAM_TYPES` from `./vocab`, and give the `smith` fixture every geometry parameter its capabilities need, plus a `without` helper:
+```ts
+const smith = EquipmentSchema.parse({
+  id: 'smith-functional-trainer',
+  kind: 'station',
+  name: T('Smith machine + functional trainer'),
+  capabilities: ['smith-bar', 'cable-column', 'rack-uprights'],
+  parameters: {
+    smithLowestBarHeightCm: { type: 'cm', label: T('Lowest bar'), how: T('Measure') },
+    smithHighestBarHeightCm: { type: 'cm', label: T('Highest bar'), how: T('Measure') },
+    benchFitsInsideRack: { type: 'bool', label: T('Bench fits'), how: T('Try it') },
+  },
+  illustrativeDefaults: { smithLowestBarHeightCm: 40, smithHighestBarHeightCm: 180, benchFitsInsideRack: true },
+});
+const without = <V>(o: Readonly<Record<string, V>>, name: string) => Object.fromEntries(Object.entries(o).filter(([k]) => k !== name));
+```
+Spread `smith.parameters` / `smith.illustrativeDefaults` in the existing illustrative-default tests so they keep reporting only the problem they test ("requires a typical value…" now lists `smithLowestBarHeightCm`, `smithHighestBarHeightCm` and `benchFitsInsideRack`). Replace the `it.each(GEOMETRY_PARAMS)` test and add the new ones:
+```ts
+  it.each(GEOMETRY_PARAMS)('requires an illustrative default for geometry parameter %s (D12)', (name) => {
+    // equipment that provides no geometry capability but still defines the parameter
+    const eq = EquipmentSchema.parse({
+      ...smith,
+      id: 'gadget',
+      capabilities: ['gadget'],
+      parameters: { [name]: { type: GEOMETRY_PARAM_TYPES[name], label: T('Param'), how: T('Measure') } },
+      illustrativeDefaults: {},
+    });
+    expect(problemsOf(input({ equipment: [smith, eq] }))).toEqual([
+      `equipment "gadget": parameter "${name}" is read by the geometry checks and needs an illustrative default`,
+    ]);
+  });
+
+  it.each([
+    ['smith-bar', 'smithLowestBarHeightCm'],
+    ['smith-bar', 'smithHighestBarHeightCm'],
+    ['smith-bar', 'benchFitsInsideRack'],
+    ['rack-uprights', 'benchFitsInsideRack'],
+    ['pull-up-bar', 'pullUpBarHeightCm'],
+  ] as const)('requires equipment providing %s to define geometry parameter %s', (capability, name) => {
+    const all = EquipmentSchema.parse({
+      ...smith,
+      id: 'station',
+      capabilities: [capability],
+      parameters: { ...smith.parameters, pullUpBarHeightCm: { type: 'cm', label: T('Pull-up bar'), how: T('Measure') } },
+      illustrativeDefaults: { ...smith.illustrativeDefaults, pullUpBarHeightCm: 210 },
+    });
+    expect(problemsOf(input({ equipment: [smith, all] }))).toEqual([]);
+    const missing = { ...all, parameters: without(all.parameters, name), illustrativeDefaults: without(all.illustrativeDefaults, name) };
+    expect(problemsOf(input({ equipment: [smith, missing] }))).toEqual([
+      `equipment "station": provides "${capability}", so it must define the geometry parameter "${name}" with an illustrative default`,
+    ]);
+  });
+
+  it('reports each missing geometry parameter once, naming every capability that needs it', () => {
+    const noFit = { ...smith, parameters: without(smith.parameters, 'benchFitsInsideRack'), illustrativeDefaults: without(smith.illustrativeDefaults, 'benchFitsInsideRack') };
+    expect(problemsOf(input({ equipment: [noFit] }))).toEqual([
+      'equipment "smith-functional-trainer": provides "smith-bar", "rack-uprights", so it must define the geometry parameter "benchFitsInsideRack" with an illustrative default',
+    ]);
+  });
+
+  it('requires each geometry parameter to have the type the checks read', () => {
+    const deg = EquipmentSchema.parse({
+      ...smith,
+      parameters: { ...smith.parameters, smithLowestBarHeightCm: { type: 'deg', label: T('Lowest bar'), how: T('Measure') } },
+    });
+    expect(problemsOf(input({ equipment: [deg] }))).toEqual([
+      'equipment "smith-functional-trainer": geometry parameter "smithLowestBarHeightCm" must be of type cm, not deg',
+    ]);
+  });
+```
+Run `npx vitest run src/lib/content/catalog.test.ts`: the seven new cases fail. Then replace the geometry-parameter loop in `buildCatalog` (import `CAPABILITY_GEOMETRY_PARAMS`, `GEOMETRY_PARAM_TYPES`, `type GeometryParam` from `./vocab`):
+```ts
+    // D12: the engine uses the typical value whenever the user has not measured, so it must exist and have
+    // the type the checks read.
+    for (const name of GEOMETRY_PARAMS) {
+      const def = eq.parameters[name];
+      if (def && def.type !== GEOMETRY_PARAM_TYPES[name]) {
+        problems.push(`equipment "${eq.id}": geometry parameter "${name}" must be of type ${GEOMETRY_PARAM_TYPES[name]}, not ${def.type}`);
+      }
+      if (def && eq.illustrativeDefaults[name] === undefined) {
+        problems.push(`equipment "${eq.id}": parameter "${name}" is read by the geometry checks and needs an illustrative default`);
+      }
+    }
+    // Fail safe: equipment providing a capability the geometry checks depend on must define their inputs.
+    const needed = new Map<GeometryParam, string[]>();
+    for (const cap of eq.capabilities) {
+      if (!Object.hasOwn(CAPABILITY_GEOMETRY_PARAMS, cap)) continue;
+      for (const name of CAPABILITY_GEOMETRY_PARAMS[cap]!) needed.set(name, [...(needed.get(name) ?? []), cap]);
+    }
+    for (const [name, caps] of needed) {
+      if (!eq.parameters[name]) {
+        problems.push(`equipment "${eq.id}": provides "${caps.join('", "')}", so it must define the geometry parameter "${name}" with an illustrative default`);
+      }
+    }
+  }
+```
+(the last `}` closes the per-equipment loop). The seed Smith station already defines all four parameters, so `npm run build` still passes; removing one from its YAML fails the build with `- equipment "smith-functional-trainer": provides "smith-bar", so it must define the geometry parameter "…" with an illustrative default`.
+
+- [ ] **Step 7: Run the tests and the checks**
+
+Run: `npx vitest run src/lib/engine src/lib/content && npm run lint && npm run check && npm run build`
+Expected: `geometry.test.ts` 26 passed, `catalog.test.ts` 22 passed (46 in `src/lib/content`); 0 lint and type errors; the build passes.
+
+- [ ] **Step 8: Commit, open the PR, merge when CI is green**
 
 ```bash
-git add src/lib/engine
+git add src/lib/engine src/lib/content/vocab.ts src/lib/content/catalog.ts src/lib/content/catalog.test.ts src/lib/i18n/en.ts src/lib/i18n/zh.ts
 git commit -m $'feat(engine): add geometry checks with typical defaults and synthetic fixtures\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
 git push -u origin HEAD
 gh pr create --repo tomqwu/ai_health --title "Engine geometry checks with typical defaults" \
@@ -3462,7 +3699,7 @@ gh pr create --repo tomqwu/ai_health --title "Engine geometry checks with typica
 ```
 When CI is green: `gh pr merge --squash --delete-branch && git checkout main && git pull`.
 
-**Done when:** each geometry check passes and fails as spec §7.1 describes, every unknown input falls back to its typical value (D12), and an assumed ceiling only ever adds a note.
+**Done when:** each geometry check passes and fails as spec §7.1 describes, every unknown input falls back to its typical value (D12), an assumed ceiling only ever adds a note, an input with no usable value fails its check instead of skipping it, and the tests pin the user's own stature (not just the typical 175 cm).
 
 ---
 
@@ -4881,7 +5118,9 @@ references, so `npm run build` fails on any mistake. The design spec (§5) is th
 - **Generic only.** No brand or model names, no personal measurements, no photos of anyone's home.
   Dimensions in `illustrativeDefaults` are typical values: pages draw them (labeled "illustrative"), and
   the engine uses them whenever a user has not entered their own (spec D12). Every parameter the geometry
-  checks read (`GEOMETRY_PARAMS` in `src/lib/content/vocab.ts`) needs one, or the build fails.
+  checks read (`GEOMETRY_PARAMS` in `src/lib/content/vocab.ts`) needs one of the right type, and equipment
+  providing `smith-bar`, `rack-uprights` or `pull-up-bar` must define the parameters those checks read
+  (`CAPABILITY_GEOMETRY_PARAMS`), or the build fails.
 - **Both languages.** Every user-facing field is `{ en, zh }`; `zh` is Simplified Chinese and must contain
   Chinese characters.
 - **Ids** are kebab-case, unique per collection, and match the file name (`rope.yaml` → `id: rope`).

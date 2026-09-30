@@ -70,6 +70,8 @@ export const en = {
   'engine.reason.barBelowStop': 'The bar would go down to {height}, below the lowest stop at {stop}',
   'engine.reason.barAboveStop': 'The bar would rise to {height}, above the highest stop at {stop}',
   'engine.reason.benchFit': 'Your bench does not fit inside the rack',
+  'engine.reason.benchFitUnknown': 'It is not known whether your bench fits inside the rack, so this exercise cannot be checked',
+  'engine.reason.stopsUnknown': "The Smith bar's stop heights are not known for your equipment, so the bar's travel cannot be checked",
   'engine.reason.rom': 'At your height the movement goes past a safe joint range',
   'engine.reason.noGeometryModel': 'This exercise cannot be checked on this machine yet',
   'engine.reason.poseFailed': 'This movement could not be posed at your height',
