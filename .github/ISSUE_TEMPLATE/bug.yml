@@ -2,6 +2,10 @@ name: Bug
 description: Something is broken
 labels: ["type:bug"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **Privacy:** this repository is public. Do **not** attach personal photos, body or health measurements or other health details here.
   - type: input
     id: url
     attributes: { label: Page URL }

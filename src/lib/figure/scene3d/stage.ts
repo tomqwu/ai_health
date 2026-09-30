@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { Vec3 } from '../math/vec3';
-
-const CM = 0.01;
+import { CM } from './units';
 
 export interface Stage {
   renderer: THREE.WebGLRenderer;
@@ -33,7 +32,9 @@ export function createStage(canvas: HTMLCanvasElement, width: number, height: nu
   scene.background = new THREE.Color('#f3f2ee');
   // Image-based lighting so metal (rails, bar) and skin read correctly.
   const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const room = new RoomEnvironment();
+  scene.environment = pmrem.fromScene(room, 0.04).texture;
+  room.dispose();
   scene.environmentIntensity = 0.35;
   pmrem.dispose();
   scene.add(new THREE.HemisphereLight('#ffffff', '#b9b4a8', 0.9));
@@ -97,8 +98,7 @@ export function disposeStage(stage: Stage): void {
       for (const m of Array.isArray(o.material) ? o.material : [o.material]) disposeMaterial(m);
     }
     if (o instanceof THREE.SkinnedMesh) o.skeleton.dispose();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (o instanceof THREE.Light) (o as any).shadow?.dispose();
+    if ('shadow' in o && o.shadow instanceof THREE.LightShadow) o.shadow.dispose();
   });
   scene.environment?.dispose(); // the PMREM render target's texture
   renderer.dispose(); // keep the WebGL context alive so the canvas can be reused

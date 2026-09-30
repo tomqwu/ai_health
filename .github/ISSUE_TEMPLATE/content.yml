@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Privacy:** this repository is public. Do **not** attach personal photos, measurements or health details here.
+        **Privacy:** this repository is public. Do **not** attach personal photos, body or health measurements or other health details here; equipment dimensions are fine.
         Share photos in a private session; only generic descriptions belong in this issue.
   - type: input
     id: item
@@ -14,7 +14,7 @@ body:
   - type: checkboxes
     id: measurements
     attributes:
-      label: Geometry the figures need (see the spec §5.1)
+      label: "Geometry the figures need (see docs/superpowers/specs/2026-09-29-fitness-platform-design.md §5.1)"
       options:
         - label: Hole numbering (floor to the lowest and highest numbered hole)
         - label: Lowest and highest bar positions

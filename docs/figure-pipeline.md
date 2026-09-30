@@ -18,7 +18,7 @@ How exercise figures are produced. Spec: §8 of `docs/superpowers/specs/2026-09-
 | Geometry | `src/lib/figure/geometry` | Equipment primitives built from parameters; `ILLUSTRATIVE_SMITH` holds labelled drawing defaults (not measurements of anyone's machine) |
 | Fixtures | `src/lib/figure/fixtures` | Exercise data: `SMITH_SQUAT` and the `FIGURES` registry the renderer reads |
 | 3D | `src/lib/figure/scene3d` | Stage (lights, floor, camera), equipment meshes, human loader and `applyPose`, `mountFigure` |
-| Output | `scripts/render-figures.ts`, `src/pages/render/figure.astro`, `src/components/figure/` | Pre-rendered WebP frames; the interactive `FigureViewer.tsx`; the spike page `/<lang>/dev/figure-spike/` |
+| Output | `scripts/render-figures.ts`, `src/pages/render/[figure].astro` (dev-only; never built into `dist/`), `src/components/figure/` | Pre-rendered WebP frames; the interactive `FigureViewer.tsx`; the spike page `/<lang>/dev/figure-spike/` |
 
 ## Regenerating the human model
 

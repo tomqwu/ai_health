@@ -2,13 +2,12 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import AreaCard from '../../components/AreaCard.astro';
 import { AREAS } from '../../lib/areas';
-import { isLocale, localeStaticPaths, localizedPath, t } from '../../lib/i18n';
+import { requireLocale, localeStaticPaths, localizedPath, t } from '../../lib/i18n';
 
 export function getStaticPaths() {
   return localeStaticPaths();
 }
-const { lang } = Astro.params;
-if (!isLocale(lang)) throw new Error(`Unknown locale: ${lang}`);
+const lang = requireLocale(Astro.params.lang);
 ---
 <BaseLayout lang={lang}>
   <section class="hero">

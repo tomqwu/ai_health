@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { en } from './en';
 import { zh } from './zh';
-import { localeStaticPaths, localizedPath, pickLocale, switchLocale, t } from './index';
+import { localeStaticPaths, localizedPath, pickLocale, requireLocale, switchLocale, t } from './index';
 
 const CJK = /[㐀-鿿]/;
 
@@ -18,6 +18,18 @@ describe('dictionaries', () => {
   it('t() looks up by locale', () => {
     expect(t('en', 'nav.home')).toBe('Home');
     expect(t('zh', 'nav.home')).toBe('首页');
+  });
+});
+
+describe('requireLocale', () => {
+  it('returns a supported locale', () => {
+    expect(requireLocale('en')).toBe('en');
+    expect(requireLocale('zh')).toBe('zh');
+  });
+  it('throws "Unknown locale: <value>" otherwise', () => {
+    expect(() => requireLocale('fr')).toThrow('Unknown locale: fr');
+    expect(() => requireLocale(undefined)).toThrow('Unknown locale: undefined');
+    expect(() => requireLocale(42)).toThrow('Unknown locale: 42');
   });
 });
 
