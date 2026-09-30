@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildCatalog, CatalogError, type CatalogInput } from './catalog';
 import { AttachmentSchema, EquipmentSchema, ExerciseSchema, TemplateSchema } from './schemas';
-import { GEOMETRY_PARAMS } from './vocab';
+import { GEOMETRY_PARAM_TYPES, GEOMETRY_PARAMS } from './vocab';
 
 const T = (en: string) => ({ en, zh: `中文${en}` });
 
@@ -10,9 +10,14 @@ const smith = EquipmentSchema.parse({
   kind: 'station',
   name: T('Smith machine + functional trainer'),
   capabilities: ['smith-bar', 'cable-column', 'rack-uprights'],
-  parameters: { smithLowestBarHeightCm: { type: 'cm', label: T('Lowest bar'), how: T('Measure') } },
-  illustrativeDefaults: { smithLowestBarHeightCm: 40 },
+  parameters: {
+    smithLowestBarHeightCm: { type: 'cm', label: T('Lowest bar'), how: T('Measure') },
+    smithHighestBarHeightCm: { type: 'cm', label: T('Highest bar'), how: T('Measure') },
+    benchFitsInsideRack: { type: 'bool', label: T('Bench fits'), how: T('Try it') },
+  },
+  illustrativeDefaults: { smithLowestBarHeightCm: 40, smithHighestBarHeightCm: 180, benchFitsInsideRack: true },
 });
+const without = <V>(o: Readonly<Record<string, V>>, name: string) => Object.fromEntries(Object.entries(o).filter(([k]) => k !== name));
 const rope = AttachmentSchema.parse({ id: 'rope', name: T('Rope'), fits: ['cable-column'] });
 const holdDown = AttachmentSchema.parse({
   id: 'roller-hold-down',
@@ -110,7 +115,7 @@ describe('buildCatalog', () => {
   });
 
   it('checks illustrative defaults against parameter definitions', () => {
-    const bad = { ...smith, illustrativeDefaults: { smithLowestBarHeightCm: -5, ceilingCm: 250 } };
+    const bad = { ...smith, illustrativeDefaults: { ...smith.illustrativeDefaults, smithLowestBarHeightCm: -5, ceilingCm: 250 } };
     expect(problemsOf(input({ equipment: [bad] }))).toEqual([
       'equipment "smith-functional-trainer": illustrative default "smithLowestBarHeightCm" is not a valid cm',
       'equipment "smith-functional-trainer": illustrative default "ceilingCm" is not a parameter',
@@ -120,18 +125,16 @@ describe('buildCatalog', () => {
   it('requires a typical value for every parameter the geometry checks read (D12)', () => {
     expect(problemsOf(input({ equipment: [{ ...smith, illustrativeDefaults: {} }] }))).toEqual([
       'equipment "smith-functional-trainer": parameter "smithLowestBarHeightCm" is read by the geometry checks and needs an illustrative default',
+      'equipment "smith-functional-trainer": parameter "smithHighestBarHeightCm" is read by the geometry checks and needs an illustrative default',
+      'equipment "smith-functional-trainer": parameter "benchFitsInsideRack" is read by the geometry checks and needs an illustrative default',
     ]);
   });
 
   it('checks illustrative defaults against the declared parameter type, not just the name', () => {
     const typed = EquipmentSchema.parse({
       ...smith,
-      parameters: {
-        smithLowestBarHeightCm: { type: 'cm', label: T('Lowest bar'), how: T('Measure') },
-        benchFitsInsideRack: { type: 'bool', label: T('Bench fits'), how: T('Try it') },
-        padCount: { type: 'count', label: T('Pads'), how: T('Count') },
-      },
-      illustrativeDefaults: { smithLowestBarHeightCm: true, benchFitsInsideRack: 'yes', padCount: 1.5 },
+      parameters: { ...smith.parameters, padCount: { type: 'count', label: T('Pads'), how: T('Count') } },
+      illustrativeDefaults: { ...smith.illustrativeDefaults, smithLowestBarHeightCm: true, benchFitsInsideRack: 'yes', padCount: 1.5 },
     });
     expect(problemsOf(input({ equipment: [typed] }))).toEqual([
       'equipment "smith-functional-trainer": illustrative default "smithLowestBarHeightCm" is not a valid cm',
@@ -141,14 +144,54 @@ describe('buildCatalog', () => {
   });
 
   it.each(GEOMETRY_PARAMS)('requires an illustrative default for geometry parameter %s (D12)', (name) => {
-    const type = name === 'benchFitsInsideRack' ? 'bool' : 'cm';
+    // equipment that provides no geometry capability but still defines the parameter
     const eq = EquipmentSchema.parse({
       ...smith,
-      parameters: { [name]: { type, label: T('Param'), how: T('Measure') } },
+      id: 'gadget',
+      capabilities: ['gadget'],
+      parameters: { [name]: { type: GEOMETRY_PARAM_TYPES[name], label: T('Param'), how: T('Measure') } },
       illustrativeDefaults: {},
     });
-    expect(problemsOf(input({ equipment: [eq] }))).toEqual([
-      `equipment "smith-functional-trainer": parameter "${name}" is read by the geometry checks and needs an illustrative default`,
+    expect(problemsOf(input({ equipment: [smith, eq] }))).toEqual([
+      `equipment "gadget": parameter "${name}" is read by the geometry checks and needs an illustrative default`,
+    ]);
+  });
+
+  it.each([
+    ['smith-bar', 'smithLowestBarHeightCm'],
+    ['smith-bar', 'smithHighestBarHeightCm'],
+    ['smith-bar', 'benchFitsInsideRack'],
+    ['rack-uprights', 'benchFitsInsideRack'],
+    ['pull-up-bar', 'pullUpBarHeightCm'],
+  ] as const)('requires equipment providing %s to define geometry parameter %s', (capability, name) => {
+    const all = EquipmentSchema.parse({
+      ...smith,
+      id: 'station',
+      capabilities: [capability],
+      parameters: { ...smith.parameters, pullUpBarHeightCm: { type: 'cm', label: T('Pull-up bar'), how: T('Measure') } },
+      illustrativeDefaults: { ...smith.illustrativeDefaults, pullUpBarHeightCm: 210 },
+    });
+    expect(problemsOf(input({ equipment: [smith, all] }))).toEqual([]);
+    const missing = { ...all, parameters: without(all.parameters, name), illustrativeDefaults: without(all.illustrativeDefaults, name) };
+    expect(problemsOf(input({ equipment: [smith, missing] }))).toEqual([
+      `equipment "station": provides "${capability}", so it must define the geometry parameter "${name}" with an illustrative default`,
+    ]);
+  });
+
+  it('reports each missing geometry parameter once, naming every capability that needs it', () => {
+    const noFit = { ...smith, parameters: without(smith.parameters, 'benchFitsInsideRack'), illustrativeDefaults: without(smith.illustrativeDefaults, 'benchFitsInsideRack') };
+    expect(problemsOf(input({ equipment: [noFit] }))).toEqual([
+      'equipment "smith-functional-trainer": provides "smith-bar", "rack-uprights", so it must define the geometry parameter "benchFitsInsideRack" with an illustrative default',
+    ]);
+  });
+
+  it('requires each geometry parameter to have the type the checks read', () => {
+    const deg = EquipmentSchema.parse({
+      ...smith,
+      parameters: { ...smith.parameters, smithLowestBarHeightCm: { type: 'deg', label: T('Lowest bar'), how: T('Measure') } },
+    });
+    expect(problemsOf(input({ equipment: [deg] }))).toEqual([
+      'equipment "smith-functional-trainer": geometry parameter "smithLowestBarHeightCm" must be of type cm, not deg',
     ]);
   });
 
