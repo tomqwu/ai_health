@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Locator } from '@playwright/test';
+import { en } from '../../src/lib/i18n/en';
 import { collectErrors } from './helpers';
 
 // Downsampled RGB signature of the canvas: samples every 7th pixel, hashed (FNV-1a) into one number.
@@ -43,9 +44,24 @@ for (const lang of ['en', 'zh']) {
 test('frame buttons switch the pose', async ({ page }) => {
   await page.goto('/ai_health/en/dev/figure-spike/');
   await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator('svg.figure-overlay')).toBeVisible(); // frame 0 has been rendered
   const canvas = page.locator('canvas.figure-canvas');
   const before = await pixelSignature(canvas);
   await page.getByRole('button', { name: /2\. Bottom/ }).click();
   await expect(page.getByRole('button', { name: /2\. Bottom/ })).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => pixelSignature(canvas)).not.toBe(before);
+});
+
+test('shows the error state and fallback images when the model fails to load', async ({ page }) => {
+  await page.route('**/models/human.glb', (route) => route.abort());
+  await page.goto('/ai_health/en/dev/figure-spike/');
+  const viewer = page.locator('[data-figure-status="error"]');
+  await expect(viewer).toBeVisible({ timeout: 90_000 });
+  await expect(viewer.getByRole('status')).toHaveText(en['figure.loadError']);
+  const images = viewer.locator('.figure-fallback-grid img');
+  await expect(images).toHaveCount(3);
+  for (const img of await images.all()) {
+    await img.scrollIntoViewIfNeeded();
+    await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+  }
 });

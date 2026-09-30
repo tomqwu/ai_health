@@ -18,7 +18,10 @@ type Arrow = ReturnType<FigureScene['arrow']>;
 
 function hasWebgl(): boolean {
   const probe = document.createElement('canvas');
-  return Boolean(probe.getContext('webgl2') ?? probe.getContext('webgl'));
+  const gl = probe.getContext('webgl2') ?? probe.getContext('webgl');
+  // Release the probe context immediately so it does not count against the browser's context limit.
+  gl?.getExtension('WEBGL_lose_context')?.loseContext();
+  return Boolean(gl);
 }
 
 const PLAY_ORDER = [0, 1, 2, 0];
@@ -36,15 +39,16 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
 
   useEffect(() => {
     let cancelled = false;
-    let disposed = false;
+    let sceneDisposed = false;
     let scene: FigureScene | undefined;
     let controls: { dispose(): void } | undefined;
-    // Idempotent: called on unmount and from the error paths, so the scene is disposed exactly once.
-    const cleanup = () => {
-      if (disposed) return;
-      disposed = true;
+    // Disposal tracks the scene, not the effect: a no-op until mountFigure has produced a scene,
+    // then idempotent, so the scene (and controls, if created) are released exactly once.
+    const disposeScene = () => {
+      if (!scene || sceneDisposed) return;
+      sceneDisposed = true;
       controls?.dispose();
-      scene?.dispose();
+      scene.dispose();
     };
     (async () => {
       try {
@@ -61,7 +65,7 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
         ]);
         scene = await mountFigure(canvas, { width, height, modelUrl, spec, pixelRatio: Math.min(window.devicePixelRatio, 2) });
         if (cancelled) {
-          cleanup();
+          disposeScene(); // unmounted while mountFigure was loading
           return;
         }
         const mounted = scene;
@@ -88,13 +92,14 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
       } catch (err) {
         console.error('3D figure failed to load:', err);
         sceneRef.current = null;
-        cleanup();
+        disposeScene(); // no-op if mountFigure itself threw (it disposes its own stage)
         if (!cancelled) setStatus('error');
       }
     })();
     return () => {
       cancelled = true;
-      cleanup();
+      sceneRef.current = null;
+      disposeScene(); // no-op while still loading; the async path disposes once mountFigure resolves
     };
   }, []);
 
