@@ -23,7 +23,7 @@ export function switchLocale(pathname: string, target: Locale, base: string = im
   const b = withBase('', base);
   const rest = pathname.startsWith(b) ? pathname.slice(b.length) : '';
   const [first, ...tail] = rest.split('/');
-  if (first && (LOCALES as readonly string[]).includes(first)) return localizedPath(target, tail.join('/'), base);
+  if (isLocale(first)) return localizedPath(target, tail.join('/'), base);
   return localizedPath(target, '', base);
 }
 
