@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Locator } from '@playwright/test';
+import { SMITH_SQUAT } from '../../src/lib/figure/fixtures/smith-squat';
 import { en } from '../../src/lib/i18n/en';
 import { collectErrors } from './helpers';
 
@@ -100,6 +101,61 @@ test('Reset view restores the camera and the movement arrow', async ({ page }) =
   await page.getByRole('button', { name: en['figure.resetView'], exact: true }).click();
   await expect(overlay).toBeVisible(RENDER_TIMEOUT);
   await expect.poll(() => pixelSignature(canvas), RENDER_TIMEOUT).toBe(before);
+  expect(errors).toEqual([]);
+});
+
+test('the canvas is an image whose label names the step and says when it is animating', async ({ page }) => {
+  await page.goto('/ai_health/en/dev/figure-spike/');
+  await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  const canvas = page.locator('canvas.figure-canvas');
+  await expect(canvas).toHaveAttribute('role', 'img');
+  const name = SMITH_SQUAT.name.en;
+  const [first, second] = SMITH_SQUAT.frames.map((f) => f.label.en);
+  await expect(canvas).toHaveAttribute('aria-label', `${name} — ${first}`);
+  await page.getByRole('button', { name: /2\. Bottom/ }).click();
+  await expect(canvas).toHaveAttribute('aria-label', `${name} — ${second}`);
+
+  await page.getByRole('button', { name: en['figure.play'], exact: true }).click();
+  await expect(canvas).toHaveAttribute('aria-label', `${name} — ${en['figure.animating']}`);
+  await page.getByRole('button', { name: en['figure.pause'], exact: true }).click();
+  await expect(canvas).toHaveAttribute('aria-label', `${name} — ${second}`); // the label is accurate again once paused
+});
+
+test('the canvas and the arrow overlay follow the container width', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await page.goto('/ai_health/en/dev/figure-spike/');
+  await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  const canvas = page.locator('canvas.figure-canvas');
+  const overlay = page.locator('svg.figure-overlay');
+  await expect(overlay).toBeVisible();
+
+  // The drawing buffer is the CSS size times the pixel ratio (1 here), and the overlay viewBox matches it.
+  const state = () =>
+    canvas.evaluate((c: HTMLCanvasElement) => ({
+      css: c.clientWidth,
+      backing: c.width,
+      viewBox: document.querySelector('svg.figure-overlay')?.getAttribute('viewBox') ?? null,
+      ratio: Math.min(window.devicePixelRatio, 2),
+    }));
+  const initial = await state();
+  expect(initial.backing).toBe(Math.round(initial.css * initial.ratio));
+
+  await page.setViewportSize({ width: 420, height: 900 });
+  await expect.poll(async () => (await state()).css, RENDER_TIMEOUT).toBeLessThan(initial.css);
+  await expect.poll(async () => {
+    const s = await state();
+    return s.backing === Math.round(s.css * s.ratio) && s.viewBox === `0 0 ${s.css} ${Math.round((s.css * 4) / 3)}`;
+  }, RENDER_TIMEOUT).toBe(true);
+
+  // The overlay is still there after Reset view at the new size.
+  await page.getByRole('button', { name: en['figure.resetView'], exact: true }).click();
+  await expect(overlay).toBeVisible(RENDER_TIMEOUT);
+
+  // And growing back works too.
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await expect.poll(async () => (await state()).backing, RENDER_TIMEOUT).toBe(initial.backing);
+  await expect(overlay).toBeVisible();
   expect(errors).toEqual([]);
 });
 
