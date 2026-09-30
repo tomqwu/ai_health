@@ -6,8 +6,10 @@ import type { Profile } from '../profile/schema';
 /**
  * The value the geometry checks use for parameter `name` (D12): the user's own measurement when it is stored
  * with the right shape, otherwise the illustrative default of the owned equipment that defines the
- * parameter. Undefined only when no owned equipment defines it (buildCatalog guarantees a default for
- * every geometry parameter an equipment defines).
+ * parameter. Undefined when no owned equipment defines it. buildCatalog guarantees a typical value of the
+ * right type for every geometry parameter an equipment defines, and that equipment providing a capability
+ * the checks depend on defines its parameters (`CAPABILITY_GEOMETRY_PARAMS`); the checks still fail safe on
+ * undefined.
  */
 export function paramValue(profile: Profile, catalog: Catalog, name: GeometryParam): ParamValue | undefined {
   for (const owned of profile.equipment) {

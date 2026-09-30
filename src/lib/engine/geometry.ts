@@ -78,7 +78,8 @@ function envelopeTopCm(ex: Exercise, statureCm: number, profile: Profile, catalo
 /**
  * Spec §7.1 check 4: ceiling clearance, Smith bar travel, bench fit and joint range of motion. Unknown
  * inputs use typical values (D12): stature 175 cm, the equipment's illustrative defaults, and an assumed
- * 240 cm ceiling that adds a clearance note instead of failing.
+ * 240 cm ceiling that adds a clearance note instead of failing. A Smith stop or bench-fit answer with no
+ * usable value at all (buildCatalog prevents this for owned equipment) fails the check instead of skipping it.
  */
 export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, probes: ProbeRegistry): GeometryOutcome {
   const reasons: Reason[] = [];
@@ -116,29 +117,39 @@ export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, 
     });
   }
 
-  // Smith bar travel versus the stops (measured, else typical); both are bar-centre heights.
+  // Smith bar travel versus the stops (measured, else typical); both are bar-centre heights. The guard above
+  // ensures the probe reported bar heights. A stop that cannot be resolved fails safe: without it the bar's
+  // travel cannot be checked, so the exercise is never silently allowed.
   if (movesSmithBar && probed?.barCentersCm) {
-    const low = Math.min(...probed.barCentersCm);
-    const high = Math.max(...probed.barCentersCm);
     const lowestCm = numberParam(profile, catalog, 'smithLowestBarHeightCm');
     const highestCm = numberParam(profile, catalog, 'smithHighestBarHeightCm');
-    if (lowestCm !== undefined && low < lowestCm) {
-      reasons.push({
-        check: 'bar-travel',
-        message: { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: Math.round(low) }, stop: { lengthCm: lowestCm } } },
-      });
-    }
-    if (highestCm !== undefined && high > highestCm) {
-      reasons.push({
-        check: 'bar-travel',
-        message: { key: 'engine.reason.barAboveStop', params: { height: { lengthCm: Math.round(high) }, stop: { lengthCm: highestCm } } },
-      });
+    if (lowestCm === undefined || highestCm === undefined) {
+      reasons.push({ check: 'bar-travel', message: { key: 'engine.reason.stopsUnknown' } });
+    } else {
+      // Rounded outward, so a bar 0.4 cm past a stop never reads as the stop itself.
+      const low = Math.min(...probed.barCentersCm);
+      const high = Math.max(...probed.barCentersCm);
+      if (low < lowestCm) {
+        reasons.push({
+          check: 'bar-travel',
+          message: { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: Math.floor(low) }, stop: { lengthCm: lowestCm } } },
+        });
+      }
+      if (high > highestCm) {
+        reasons.push({
+          check: 'bar-travel',
+          message: { key: 'engine.reason.barAboveStop', params: { height: { lengthCm: Math.ceil(high) }, stop: { lengthCm: highestCm } } },
+        });
+      }
     }
   }
 
-  // Bench between the uprights (the user's answer, else the typical one).
-  if (benchInRack(ex) && boolParam(profile, catalog, 'benchFitsInsideRack') === false) {
-    reasons.push({ check: 'bench-fit', message: { key: 'engine.reason.benchFit' } });
+  // Bench between the uprights (the user's answer, else the typical one). An answer that cannot be resolved
+  // fails safe.
+  if (benchInRack(ex)) {
+    const fits = boolParam(profile, catalog, 'benchFitsInsideRack');
+    if (fits === undefined) reasons.push({ check: 'bench-fit', message: { key: 'engine.reason.benchFitUnknown' } });
+    else if (!fits) reasons.push({ check: 'bench-fit', message: { key: 'engine.reason.benchFit' } });
   }
 
   // Joint range of motion at this stature.

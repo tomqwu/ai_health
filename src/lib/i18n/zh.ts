@@ -72,6 +72,8 @@ export const zh: Dictionary = {
   'engine.reason.barBelowStop': '杠铃需要降到 {height}，低于最低限位 {stop}',
   'engine.reason.barAboveStop': '杠铃需要升到 {height}，高于最高限位 {stop}',
   'engine.reason.benchFit': '你的训练凳放不进架子里',
+  'engine.reason.benchFitUnknown': '无法确定你的训练凳能否放进架子内，因此无法检查这个动作',
+  'engine.reason.stopsUnknown': '缺少你的器械上史密斯杠的限位高度，因此无法检查杠铃的行程',
   'engine.reason.rom': '按你的身高，这个动作会超出关节的安全活动范围',
   'engine.reason.noGeometryModel': '暂时还无法在这台器械上检查这个动作',
   'engine.reason.poseFailed': '无法按你的身高摆出这个动作的姿势',
