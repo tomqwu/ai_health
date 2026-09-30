@@ -128,6 +128,27 @@ export const SYN_TEMPLATE: Template = TemplateSchema.parse({
   ],
 });
 
+/** One strength day with five priority-1 slots, every one fillable with dumbbells or body weight: more than a short session keeps. */
+export const SYN_MANY_PRIORITY_TEMPLATE: Template = TemplateSchema.parse({
+  id: 'syn-many-priority',
+  name: T('Synthetic many-priority day'),
+  days: [
+    {
+      weekday: 'fri',
+      kind: 'strength',
+      focus: T('Full body'),
+      minutes: 60,
+      slots: [
+        { pattern: 'horizontal-push', sets: 3, reps: [8, 10], rir: 2, restSec: 90, priority: 1 },
+        { pattern: 'squat', sets: 3, reps: [8, 10], rir: 1, restSec: 90, priority: 1 },
+        { pattern: 'lunge', sets: 3, reps: [10, 12], rir: 2, restSec: 60, priority: 1 },
+        { pattern: 'shoulder-abduction', sets: 3, reps: [12, 15], rir: 2, restSec: 45, priority: 1 },
+        { pattern: 'core-anti-extension', sets: 3, reps: { seconds: 30 }, rir: 2, restSec: 30, priority: 1 },
+      ],
+    },
+  ],
+});
+
 export function syntheticCatalog(over: Partial<{ exercises: Exercise[]; equipment: Equipment[] }> = {}): Catalog {
   const map = <V extends { id: string }>(items: readonly V[]) => new Map(items.map((i) => [i.id, i]));
   return {
