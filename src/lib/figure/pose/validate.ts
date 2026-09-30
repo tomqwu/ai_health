@@ -1,5 +1,5 @@
-import { add, angleBetweenDeg, distance, length, scale, sub, Y_AXIS } from '../math/vec3';
-import { rotate } from '../math/quat';
+import { type Vec3, add, angleBetweenDeg, distance, length, scale, sub, Y_AXIS } from '../math/vec3';
+import { conjugate, rotate } from '../math/quat';
 import type { SmithParams } from '../geometry/smith';
 import type { Side } from './hands';
 import { type SkeletonDef, type WorldPose, restPose } from './skeleton';
@@ -31,10 +31,23 @@ export function headTop(sk: SkeletonDef, w: WorldPose, scaleFactor: number) {
   return add(w.head!.position, rotate(w.head!.rotation, scale(sk.headTopLocal, scaleFactor)));
 }
 
+/**
+ * Where the posed body actually carries the bar. The solver places the bar at neck_01 (rest) plus the
+ * offset, rigid with the torso; spine_03 moves with the torso and ignores the neck/head counter-rotation,
+ * so the bar is expressed in spine_03's frame at rest and re-posed from the solved world.
+ */
+export function carriedBarCenter(sk: SkeletonDef, sol: SmithSquatSolution, barRestOffsetCm: Vec3): Vec3 {
+  const s = sol.scaleFactor;
+  const rest = restPose(sk, s);
+  const barRest = add(rest.neck_01!.position, scale(barRestOffsetCm, s));
+  const barLocal = rotate(conjugate(rest.spine_03!.rotation), sub(barRest, rest.spine_03!.position));
+  return add(sol.world.spine_03!.position, rotate(sol.world.spine_03!.rotation, barLocal));
+}
+
 export function validateSmithSquat(
   sk: SkeletonDef,
   sol: SmithSquatSolution,
-  ctx: { smith: SmithParams; ceilingCm?: number; clearanceMarginCm?: number },
+  ctx: { smith: SmithParams; barRestOffsetCm: Vec3; ceilingCm?: number; clearanceMarginCm?: number },
 ): Finding[] {
   const out: Finding[] = [];
   const error = (check: Finding['check'], message: string) => out.push({ check, severity: 'error', message });
@@ -52,9 +65,15 @@ export function validateSmithSquat(
     if (dy > 1.5) error('feet-flat', `ball_${side} lifted ${dy.toFixed(1)} cm off the floor`);
   }
 
-  const offRail = Math.abs(sol.barCenter[2] - ctx.smith.railZCm);
-  if (offRail > 0.5) error('bar-on-rail', `bar is ${offRail.toFixed(1)} cm off the rail`);
-  const y = sol.barCenter[1];
+  const carried = carriedBarCenter(sk, sol, ctx.barRestOffsetCm);
+  const offRail = Math.abs(carried[2] - ctx.smith.railZCm);
+  const offCentre = Math.abs(carried[0]);
+  if (offRail > 0.5 || offCentre > 0.5) {
+    error('bar-on-rail', `bar is ${offRail.toFixed(1)} cm off the rail and ${offCentre.toFixed(1)} cm off the centre line`);
+  }
+  const drift = distance(carried, sol.barCenter);
+  if (drift > 0.5) error('bar-on-rail', `bar is not where the body carries it (${drift.toFixed(1)} cm apart)`);
+  const y = carried[1];
   if (y < ctx.smith.lowestBarHeightCm || y > ctx.smith.highestBarHeightCm) {
     error('bar-travel', `bar at ${y.toFixed(0)} cm is outside ${ctx.smith.lowestBarHeightCm}–${ctx.smith.highestBarHeightCm} cm`);
   }
