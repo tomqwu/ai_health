@@ -1,7 +1,7 @@
 import { withBase } from '../site';
 import { en, type MessageKey } from './en';
 import { zh } from './zh';
-import { LOCALES, type Locale } from './locales';
+import { LOCALES, isLocale, type Locale } from './locales';
 
 export * from './locales';
 export type { MessageKey } from './en';
@@ -25,6 +25,12 @@ export function switchLocale(pathname: string, target: Locale, base: string = im
   const [first, ...tail] = rest.split('/');
   if (first && (LOCALES as readonly string[]).includes(first)) return localizedPath(target, tail.join('/'), base);
   return localizedPath(target, '', base);
+}
+
+/** Narrow a route param to a supported locale, or throw. */
+export function requireLocale(value: unknown): Locale {
+  if (!isLocale(value)) throw new Error(`Unknown locale: ${String(value)}`);
+  return value;
 }
 
 export function localeStaticPaths() {

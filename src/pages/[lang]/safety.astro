@@ -1,12 +1,11 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { isLocale, localeStaticPaths, t, type MessageKey } from '../../lib/i18n';
+import { requireLocale, localeStaticPaths, t, type MessageKey } from '../../lib/i18n';
 
 export function getStaticPaths() {
   return localeStaticPaths();
 }
-const { lang } = Astro.params;
-if (!isLocale(lang)) throw new Error(`Unknown locale: ${lang}`);
+const lang = requireLocale(Astro.params.lang);
 const flags: MessageKey[] = ['safety.flag.chest', 'safety.flag.nerve', 'safety.flag.joint', 'safety.flag.dizzy'];
 const habits: MessageKey[] = ['safety.habit.warmup', 'safety.habit.stops', 'safety.habit.space', 'safety.habit.effort'];
 ---
