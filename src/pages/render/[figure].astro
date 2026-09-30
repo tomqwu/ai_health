@@ -31,13 +31,13 @@ const modelUrl = withBase('models/human.glb');
           g.__figureList = Object.values(FIGURES).map((f) => ({ id: f.id, frames: f.frames.length }));
           return;
         }
-        const spec = FIGURES[params.get('figure') ?? ''];
-        if (!spec) throw new Error(`Unknown figure: ${params.get('figure')}`);
+        const figure = FIGURES[params.get('figure') ?? ''];
+        if (!figure) throw new Error(`Unknown figure: ${params.get('figure')}`);
         const frame = Number(params.get('frame') ?? '0');
         const canvas = document.getElementById('figure-canvas') as HTMLCanvasElement;
         canvas.style.width = `${W}px`;
         canvas.style.height = `${H}px`;
-        const scene = await mountFigure(canvas, { width: W, height: H, modelUrl: canvas.dataset.modelUrl!, spec });
+        const scene = await mountFigure(canvas, { width: W, height: H, modelUrl: canvas.dataset.modelUrl!, figure });
         scene.showFrame(frame);
         scene.render();
         g.__figureReady = { arrow: scene.arrow(frame), width: W, height: H };

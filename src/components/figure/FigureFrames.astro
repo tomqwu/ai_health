@@ -1,16 +1,18 @@
 ---
-import type { SmithSquatSpec } from '../../lib/figure/pose/smithSquat';
+import type { FigureMeta } from '../../lib/figure/figures';
+import { t } from '../../lib/i18n';
 import type { Locale } from '../../lib/i18n/locales';
 import './figure.css';
 
-interface Props { lang: Locale; spec: SmithSquatSpec; images: string[] }
-const { lang, spec, images } = Astro.props;
+interface Props { lang: Locale; figure: FigureMeta; images: string[] }
+const { lang, figure, images } = Astro.props;
 ---
+{figure.unilateral && <p class="figure-badge">{t(lang, 'figure.bothSides')}</p>}
 <ol class="figure-frames">
-  {spec.frames.map((f, i) => (
+  {figure.frames.map((f, i) => (
     <li>
       <figure>
-        <img src={images[i]} alt={`${spec.name[lang]} — ${f.label[lang]}`} width="900" height="1200" loading="lazy" decoding="async" />
+        <img src={images[i]} alt={`${figure.name[lang]} — ${f.label[lang]}`} width="900" height="1200" loading="lazy" decoding="async" />
         <figcaption><strong>{i + 1}. {f.label[lang]}</strong><span>{f.cue[lang]}</span></figcaption>
       </figure>
     </li>
