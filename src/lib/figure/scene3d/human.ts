@@ -4,6 +4,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import type { Quat } from '../math/quat';
 import type { Vec3 } from '../math/vec3';
 import { disposeMaterial } from './stage';
+import { CM } from './units';
 
 /** Neutral skin tone applied at render time; the model ships without skin textures. */
 export const SKIN_TONE = '#c8957a';
@@ -51,7 +52,7 @@ export function applyPose(rig: HumanRig, pose: RigPose, scaleFactor: number): vo
   // The pose layer gives the root's WORLD transform; convert it through the real parent chain.
   const q = pose.local[rig.rootBone.name] ?? [0, 0, 0, 1];
   const desired = new THREE.Matrix4().compose(
-    new THREE.Vector3(pose.rootPosition[0] / 100, pose.rootPosition[1] / 100, pose.rootPosition[2] / 100),
+    new THREE.Vector3(pose.rootPosition[0] * CM, pose.rootPosition[1] * CM, pose.rootPosition[2] * CM),
     new THREE.Quaternion(q[0], q[1], q[2], q[3]),
     new THREE.Vector3(scaleFactor, scaleFactor, scaleFactor),
   );

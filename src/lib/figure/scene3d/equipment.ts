@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import type { Primitive, SurfaceKind } from '../geometry/primitives';
-
-const CM = 0.01;
+import { CM } from './units';
 
 const SURFACES: Record<SurfaceKind, THREE.MeshStandardMaterialParameters> = {
   frame: { color: '#2b2d31', roughness: 0.55, metalness: 0.35 },
