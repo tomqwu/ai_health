@@ -20,7 +20,7 @@ export function buildDumbbell(id: string, center: Vec3, axis: Vec3): Primitive[]
   ];
 }
 
-/** Olympic barbell (2.2 m) with one bumper plate per side. */
+/** Standard 2.2 m barbell, 50 mm sleeves, one bumper plate per side. */
 export const BARBELL = { lengthCm: 220, shaftHalfCm: 65.5, shaftRadiusCm: 1.4, sleeveRadiusCm: 2.5, plateRadiusCm: 22.5, plateThicknessCm: 6.5 } as const;
 
 export function buildBarbell(id: string, center: Vec3, axis: Vec3 = [1, 0, 0]): Primitive[] {
