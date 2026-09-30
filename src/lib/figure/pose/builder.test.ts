@@ -255,6 +255,18 @@ describe('twoBoneIK degenerate inputs', () => {
     ).toThrow(/bendSide or upperRoll/);
   });
 
+  it('names bendSide when it runs along the upper bone and so picks no side', () => {
+    const b = new PoseBuilder(syntheticSkeleton({ randomRestSeed: 2 }), 1);
+    const rest = restPose(b.sk, 1);
+    const along = sub(rest.calf_l!.position, rest.thigh_l!.position);
+    const target = add(b.world().thigh_l!.position, [0, -60, 10]);
+    const before = snapshot(b);
+    expect(() => b.twoBoneIK(...CHAIN, target, [0, 0, 1], { bendSide: along })).toThrow(
+      /^twoBoneIK\(thigh_l → calf_l → foot_l\): bendSide is parallel to thigh_l's rest direction/,
+    );
+    expect(snapshot(b)).toBe(before);
+  });
+
   it('leaves the builder unchanged when it throws', () => {
     const b = new PoseBuilder(syntheticSkeleton({ randomRestSeed: 3 }), 1);
     b.rotateWorld('pelvis', [0, 1, 0], 0.3);

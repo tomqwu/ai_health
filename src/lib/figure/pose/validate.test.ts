@@ -75,6 +75,14 @@ describe('jointAngles', () => {
       expect(jointAngles(sk, turned(seed, 'calf_l', X_AXIS, -25).world(), 'l').ankleDorsiflexDeg).toBeCloseTo(0, 6);
     }
   });
+
+  it('names the joint when a rest pose leaves a hinge undefined', () => {
+    const sk = syntheticSkeleton();
+    // The synthetic rest rotations are identity, so this points the left upper arm straight forward at rest.
+    const bones = sk.bones.map((b) => (b.name === 'lowerarm_l' ? { ...b, restLocalT: [0, 0, 30] as Vec3 } : b));
+    const bad = { ...sk, bones };
+    expect(() => jointAngles(bad, restPose(bad, 1), 'l')).toThrow(/^jointAngles: rest upperarm_l is parallel to the body's forward; cannot derive the elbow hinge/);
+  });
 });
 
 describe('twoBoneIK bendSide makes the elbow a true hinge', () => {
@@ -139,8 +147,11 @@ describe('ROM checks', () => {
     const sk = syntheticSkeleton({ randomRestSeed: 5 });
     for (const frame of SMITH_SQUAT.frames) {
       const sol = solveSmithSquat(sk, SMITH_SQUAT, frame, { statureCm: 175, railZCm: ILLUSTRATIVE_SMITH.railZCm });
-      expect(jointAngles(sk, sol.world, 'l').elbowFlexDeg, frame.id).toBeLessThan(-90);
-      expect(romFindings(sk, sol.world).map((f) => f.message)).toContain(`elbowFlex_l at ${jointAngles(sk, sol.world, 'l').elbowFlexDeg.toFixed(0)}° is past the -5° limit (hyperextension)`);
+      for (const side of ['l', 'r'] as const) {
+        const elbow = jointAngles(sk, sol.world, side).elbowFlexDeg;
+        expect(elbow, `${frame.id} ${side}`).toBeLessThan(-90);
+        expect(romFindings(sk, sol.world).map((f) => f.message)).toContain(`elbowFlex_${side} at ${elbow.toFixed(0)}° is past the -5° limit (hyperextension)`);
+      }
       expect(romFindings(sk, sol.world, { signedElbow: false })).toEqual([]);
     }
   });

@@ -45,6 +45,8 @@ interface RigFrame {
 }
 
 const rigFrames = new WeakMap<SkeletonDef, RigFrame>();
+/** A rest segment within this fraction (sine of the angle) of the body's forward defines no hinge. */
+const HINGE_EPS = 1e-6;
 
 function rigFrame(sk: SkeletonDef): RigFrame {
   let f = rigFrames.get(sk);
@@ -52,17 +54,21 @@ function rigFrame(sk: SkeletonDef): RigFrame {
   const rest = restPose(sk, 1);
   const P = (n: string) => rest[n]!.position;
   const forward = bodyForward(rest);
-  const hinge = (carrier: string, proximal: Vec3, flexToward: Vec3): Hinge => ({
-    carrier,
-    axisLocal: rotate(conjugate(rest[carrier]!.rotation), normalize(cross(proximal, flexToward))),
-  });
+  /** `segment` names the proximal segment in the error when the rest pose leaves the hinge undefined. */
+  const hinge = (joint: string, segment: string, carrier: string, proximal: Vec3, flexToward: Vec3): Hinge => {
+    const axis = cross(proximal, flexToward);
+    if (!(length(axis) > HINGE_EPS * length(proximal) * length(flexToward))) {
+      throw new Error(`jointAngles: rest ${segment} is parallel to the body's forward; cannot derive the ${joint} hinge`);
+    }
+    return { carrier, axisLocal: rotate(conjugate(rest[carrier]!.rotation), normalize(axis)) };
+  };
   const back = scale(forward, -1);
   const sides = <T>(fn: (side: Side) => T): Record<Side, T> => ({ l: fn('l'), r: fn('r') });
   f = {
     hinges: {
-      elbow: sides((s) => hinge(`upperarm_${s}`, sub(P(`lowerarm_${s}`), P(`upperarm_${s}`)), forward)),
-      knee: sides((s) => hinge(`thigh_${s}`, sub(P(`calf_${s}`), P(`thigh_${s}`)), back)),
-      hip: sides(() => hinge('pelvis', sub(P('pelvis'), P('spine_03')), forward)),
+      elbow: sides((s) => hinge('elbow', `upperarm_${s}`, `upperarm_${s}`, sub(P(`lowerarm_${s}`), P(`upperarm_${s}`)), forward)),
+      knee: sides((s) => hinge('knee', `thigh_${s}`, `thigh_${s}`, sub(P(`calf_${s}`), P(`thigh_${s}`)), back)),
+      hip: sides(() => hinge('hip', 'trunk (spine_03 → pelvis)', 'pelvis', sub(P('pelvis'), P('spine_03')), forward)),
     },
     restAnkleDeg: sides((s) => angleBetweenDeg(sub(P(`calf_${s}`), P(`foot_${s}`)), sub(P(`ball_${s}`), P(`foot_${s}`)))),
   };
@@ -73,6 +79,13 @@ function rigFrame(sk: SkeletonDef): RigFrame {
 /**
  * Angle between two segments meeting at a hinge (0 = straight), signed by which way the distal
  * segment turned about the hinge's flexion axis: positive = flexion, negative = the wrong way.
+ *
+ * Limitation: the magnitude is the full angle between the segments and the axis only sets the sign, so
+ * a bend that leaves the hinge plane (a sideways bend) reads as ordinary flexion and is not flagged. It
+ * happens when a solver leaves the proximal bone's twist at the shortest swing: in the Smith squat the
+ * knee's bend plane sits up to about 25° off the thigh's hinge on the real rig (about 19° on the
+ * synthetic one), for the same reason as the elbow (see `validateSmithSquat`). Rolling the thighs with
+ * `twoBoneIK`'s `bendSide` would put the knee back on its hinge.
  */
 function signedBendDeg(w: WorldPose, hinge: Hinge, proximal: Vec3, distal: Vec3): number {
   const axis = rotate(w[hinge.carrier]!.rotation, hinge.axisLocal);
@@ -190,6 +203,8 @@ export function validateSmithSquat(
   // and would read as hyperextended. Rolling the humerus (twoBoneIK's `bendSide`) makes them true hinge
   // flexion but visibly twists the shirt sleeve on this rig, which has no twist bones. Until that is
   // decided, the Smith squat checks the elbow's bend magnitude only; knees, hips and ankles are signed.
+  // The knee has the same cause on a smaller scale: its bend sits up to ~25° off the thigh's hinge. The
+  // sign is still right, but the signed metric cannot see bending off the hinge (see `signedBendDeg`).
   out.push(...romFindings(sk, w, { signedElbow: false }));
 
   if (ctx.ceilingCm !== undefined) {

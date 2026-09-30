@@ -37,8 +37,9 @@ function perpendicularUnit(v: Vec3, axis: Vec3): Vec3 | null {
  * Swing taking unit `from` onto unit `to`. The shortest arc, except when the two are (nearly)
  * opposite: every axis perpendicular to `from` is then equally short, so the choice is made
  * deterministically from world geometry: a half turn about the axis perpendicular to `from` closest
- * to the figure's left-right axis (+X; +Z if `from` lies along X), i.e. through the sagittal plane
- * like a forward arm raise, then a small correction onto `to`.
+ * to world +X (+Z if `from` lies along X), then a small correction onto `to`. World +X is the figure's
+ * left-right axis only while the figure faces +Z; then the half turn goes through the sagittal plane
+ * like a forward arm raise. It does not turn with the body (unlike `twoBoneIK`'s pole fallback).
  */
 function swingBetween(from: Vec3, to: Vec3): Quat {
   if (1 + dot(from, to) >= OPPOSITE_EPS) return fromUnitVectors(from, to);
@@ -214,24 +215,21 @@ export class PoseBuilder {
     const reached = add(a, scale(dir, d));
 
     // Solve both bones before touching either, so a throw cannot leave a half-applied pose.
-    const upperRoll = opts.bendSide ? { restUp: rotate(bodyTurn, opts.bendSide), up: sub(reached, mid) } : opts.upperRoll;
+    let upperRoll = opts.upperRoll;
+    if (opts.bendSide) {
+      const restUp = rotate(bodyTurn, opts.bendSide);
+      const upperRest = rotate(multiply(parentRot, du.restLocalR), dl.restLocalT);
+      if (!perpendicularUnit(restUp, normalize(upperRest))) {
+        throw new Error(`${chain}: bendSide is parallel to ${upper}'s rest direction, so it picks no side to bend toward`);
+      }
+      upperRoll = { restUp, up: sub(reached, mid) };
+    }
     const upperWorld = this.aimRotation(upper, lower, parentRot, a, mid, upperRoll);
     const lowerHead = add(a, rotate(upperWorld, scale(dl.restLocalT, this.scaleFactor)));
-    this.aimRotation(lower, end, upperWorld, lowerHead, reached, opts.lowerRoll);
+    const lowerWorld = this.aimRotation(lower, end, upperWorld, lowerHead, reached, opts.lowerRoll);
 
-    // Commit. The lower bone is solved again from the committed upper bone as forward kinematics sees
-    // it (rig rotations are unit only to ~1e-8), so the result matches aiming the two bones in turn.
-    const before = this.local[upper]!;
     this.local[upper] = normalizeQuat(multiply(conjugate(parentRot), upperWorld));
-    try {
-      const w2 = this.world();
-      const upperRot = w2[upper]!.rotation;
-      const lowerWorld = this.aimRotation(lower, end, upperRot, w2[lower]!.position, reached, opts.lowerRoll);
-      this.local[lower] = normalizeQuat(multiply(conjugate(upperRot), lowerWorld));
-    } catch (e) {
-      this.local[upper] = before;
-      throw e;
-    }
+    this.local[lower] = normalizeQuat(multiply(conjugate(upperWorld), lowerWorld));
     return reached;
   }
 
