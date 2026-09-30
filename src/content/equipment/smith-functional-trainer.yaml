@@ -1,0 +1,98 @@
+# Generic equipment class. Parameters say what to measure; values live only in the user's browser profile.
+id: smith-functional-trainer
+kind: station
+name: { en: Smith machine + functional trainer, zh: 史密斯机综合训练器 }
+capabilities: [smith-bar, rack-uprights, j-hooks, spotter-arms, safety-catches, cable-column, pull-up-bar]
+parameters:
+  smithLowestBarHeightCm:
+    type: cm
+    label: { en: Lowest Smith bar height, zh: 史密斯杠最低高度 }
+    how:
+      en: "Lower the bar onto its bottom stop; measure floor to the centre of the bar"
+      zh: "把杠铃放到最低限位上，量出地面到杠铃中心的高度"
+  smithHighestBarHeightCm:
+    type: cm
+    label: { en: Highest Smith bar height, zh: 史密斯杠最高高度 }
+    how:
+      en: "Raise the bar to the top of its travel; measure floor to the centre of the bar"
+      zh: "把杠铃升到行程最高处，量出地面到杠铃中心的高度"
+  smithRailAngleDeg:
+    type: deg
+    label: { en: Smith rail angle, zh: 史密斯导轨角度 }
+    how:
+      en: "0 = vertical rails; otherwise the tilt from vertical, as printed in the manual"
+      zh: "0 表示导轨垂直；否则填写说明书上标注的与垂直方向的夹角"
+  rackInnerDepthCm:
+    type: cm
+    label: { en: Inside depth of the rack, zh: 架子内部深度 }
+    how:
+      en: "Front to back, measured between the inner faces of the uprights"
+      zh: "从前到后，量出立柱内侧面之间的距离"
+  rackInnerWidthCm:
+    type: cm
+    label: { en: Inside width of the rack, zh: 架子内部宽度 }
+    how:
+      en: "Left to right, measured between the inner faces of the uprights"
+      zh: "从左到右，量出立柱内侧面之间的距离"
+  rackHeightCm:
+    type: cm
+    label: { en: Rack height, zh: 架子高度 }
+    how:
+      en: "Floor to the highest point of the frame"
+      zh: "地面到框架最高点的高度"
+  pullUpBarHeightCm:
+    type: cm
+    label: { en: Pull-up bar height, zh: 引体向上杆高度 }
+    how:
+      en: "Floor to top of the pull-up bar"
+      zh: "地面到引体向上杆顶部的高度"
+  safetyCatchMinHeightCm:
+    type: cm
+    label: { en: Lowest safety-catch height, zh: 保护杆最低高度 }
+    how:
+      en: "Set the safety catches in their lowest position; measure floor to their top surface"
+      zh: "把保护杆放到最低位置，量出地面到其上表面的高度"
+  cableColumns:
+    type: count
+    label: { en: Cable columns, zh: 拉力柱数量 }
+    how:
+      en: "Number of independent pulley columns"
+      zh: "可以独立使用的滑轮柱数量"
+  pulleyPositions:
+    type: enum-set
+    values: [high, chest, low]
+    label: { en: Pulley positions, zh: 滑轮位置 }
+    how:
+      en: "Tick every height the pulleys can be set to"
+      zh: "勾选滑轮可以调节到的所有高度"
+  cableStack:
+    type: stack
+    label: { en: Weight stack, zh: 配重片 }
+    how:
+      en: "First and last number printed on the stack, the step, and the unit"
+      zh: "配重片上印的第一个和最后一个数字、每档间隔以及单位"
+  cableRatio:
+    type: enum
+    values: ["1:1", "2:1", "4:1", unknown]
+    label: { en: Cable ratio, zh: 滑轮倍率 }
+    how:
+      en: "From the manual; leave unknown if unsure"
+      zh: "以说明书为准；不确定就选“未知”"
+  benchFitsInsideRack:
+    type: bool
+    label: { en: Bench fits inside the rack, zh: 训练凳能放进架子内 }
+    how:
+      en: "Can the bench, backrest included, sit fully between the uprights at every angle you use?"
+      zh: "训练凳（包括靠背）在你使用的每个角度下，能否完全放在立柱之间？"
+# Typical dimensions (D12): drawn on generic pages (labeled "illustrative") and used by the geometry
+# checks for anything the user has not measured. Not anyone's machine. Smith bar heights are bar-centre
+# heights, equal to ILLUSTRATIVE_SMITH.lowestBarHeightCm / highestBarHeightCm.
+illustrativeDefaults:
+  smithLowestBarHeightCm: 40
+  smithHighestBarHeightCm: 180
+  smithRailAngleDeg: 0
+  rackInnerDepthCm: 100
+  rackInnerWidthCm: 120
+  rackHeightCm: 215
+  pullUpBarHeightCm: 210
+  benchFitsInsideRack: true

@@ -1,0 +1,11 @@
+id: dumbbells
+kind: free-weight
+name: { en: Dumbbells, zh: 哑铃 }
+capabilities: [dumbbells]
+parameters:
+  dumbbellLoads:
+    type: weights
+    label: { en: Dumbbell pairs, zh: 哑铃重量 }
+    how:
+      en: "The load printed on each pair you own, and the unit"
+      zh: "你拥有的每对哑铃上印的重量，以及单位"

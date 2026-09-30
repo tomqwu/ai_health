@@ -1,0 +1,27 @@
+id: adjustable-bench
+kind: bench
+name: { en: Adjustable bench, zh: 可调训练凳 }
+capabilities: [flat-bench, incline-bench]
+parameters:
+  seatHeightCm:
+    type: cm
+    label: { en: Seat height, zh: 坐垫高度 }
+    how:
+      en: "Floor to the top of the seat pad"
+      zh: "地面到坐垫顶部的高度"
+  backrestLengthCm:
+    type: cm
+    label: { en: Backrest length, zh: 靠背长度 }
+    how:
+      en: "Along the backrest pad, from the hinge end to the far end"
+      zh: "沿靠背垫从铰链端量到另一端的长度"
+  backrestAnglesDeg:
+    type: enum-set
+    values: ["0", "15", "30", "45", "60", "75", "90"]
+    label: { en: Backrest angles, zh: 靠背角度 }
+    how:
+      en: "Tick each angle the backrest locks at (nearest listed value)"
+      zh: "勾选靠背可以锁定的每个角度（选最接近的数值）"
+illustrativeDefaults:
+  seatHeightCm: 43
+  backrestLengthCm: 80

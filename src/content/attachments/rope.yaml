@@ -1,0 +1,3 @@
+id: rope
+name: { en: Rope attachment, zh: 绳索把手 }
+fits: [cable-column]

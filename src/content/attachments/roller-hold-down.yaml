@@ -1,0 +1,8 @@
+# A fixed kneeling pad with rollers pinned to an upright (no pivot, no cable).
+id: roller-hold-down
+name: { en: Roller hold-down pad, zh: 滚轴固定垫 }
+fits: [rack-uprights]
+uses:
+  - { id: nordic-curl, name: { en: Nordic curl anchor, zh: 北欧腿弯举固定 } }
+  - { id: sit-up-anchor, name: { en: Sit-up anchor, zh: 仰卧起坐固定 } }
+  - { id: thigh-restraint, name: { en: Thigh restraint, zh: 大腿固定 } }

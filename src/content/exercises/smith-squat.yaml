@@ -1,0 +1,31 @@
+id: smith-squat
+name: { en: Smith Machine Squat, zh: 史密斯机深蹲 }
+pattern: squat
+muscles: { primary: [quadriceps, glutes], secondary: [adductors, spinal-erectors] }
+requires:
+  capabilities: [smith-bar]
+  attachments: []
+tags: []
+jointStress: { knee: moderate, lowBack: moderate, shoulder: low, wrist: low }
+guideSection: lower-squat
+setupState: { station: smith }
+setupSeconds: 60
+repSeconds: 4
+setup:
+  en: "Set the safety catches just below the bottom of your squat. Hook the bar at about shoulder height and stand with your feet slightly in front of the bar."
+  zh: "把保护杆设在深蹲最低点稍下方。杠铃挂在约与肩同高的位置，双脚站在杠铃略前方。"
+cues:
+  - { en: "Rotate the bar off the hooks and brace before you descend", zh: "转动杠铃脱钩，下蹲前先收紧核心" }
+  - { en: "Sit down between your heels until your thighs are about parallel", zh: "向下坐到两脚跟之间，直到大腿约与地面平行" }
+  - { en: "Push the floor away and keep your heels down", zh: "用力蹬地起身，脚跟始终踩实" }
+mistakes:
+  - { en: "Feet directly under the bar, which pushes the knees far forward", zh: "双脚正好站在杠铃正下方，导致膝盖过度前移" }
+  - { en: "Heels lifting at the bottom", zh: "在最低点脚跟抬起" }
+warmup:
+  en: "One set of 10 with the empty bar, then one lighter set of 5 before your working sets."
+  zh: "先用空杠做一组 10 次，再用较轻重量做一组 5 次，然后开始正式组。"
+safety:
+  en: "Always set the catches before loading the bar, and never remove the bottom stops."
+  zh: "上杠铃片之前务必先设置好保护杆，切勿拆除最低限位。"
+alternatives: []
+figure: { spec: smith-squat }
