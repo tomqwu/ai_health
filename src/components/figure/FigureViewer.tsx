@@ -179,7 +179,15 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
         <button type="button" disabled={status !== 'ready'} onClick={() => setPlaying((p) => !p)}>
           {playing ? t(lang, 'figure.pause') : t(lang, 'figure.play')}
         </button>
-        <button type="button" disabled={status !== 'ready'} onClick={() => resetRef.current()}>
+        <button
+          type="button"
+          disabled={status !== 'ready'}
+          onClick={() => {
+            resetRef.current(); // OrbitControls' change event clears the arrow
+            const scene = sceneRef.current;
+            if (scene && !playing) setArrow(scene.arrow(frame)); // the camera is back where the arrow lines up
+          }}
+        >
           {t(lang, 'figure.resetView')}
         </button>
       </div>

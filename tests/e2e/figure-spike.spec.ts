@@ -73,6 +73,31 @@ test('Play animates the figure without errors and Pause stops it', async ({ page
   expect(errors).toEqual([]);
 });
 
+test('Reset view restores the camera and the movement arrow', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/ai_health/en/dev/figure-spike/');
+  await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  const overlay = page.locator('svg.figure-overlay');
+  await expect(overlay).toBeVisible(); // frame 1 shows its arrow
+  const canvas = page.locator('canvas.figure-canvas');
+  const before = await pixelSignature(canvas);
+
+  await canvas.scrollIntoViewIfNeeded();
+  const box = (await canvas.boundingBox())!;
+  const [x, y] = [box.x + box.width / 2, Math.max(box.y, 0) + 100]; // a point inside the viewport
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 150, y, { steps: 10 });
+  await page.mouse.up();
+  await expect(overlay).toHaveCount(0); // orbiting hides the arrow (it would no longer line up)
+  await expect.poll(() => pixelSignature(canvas)).not.toBe(before);
+
+  await page.getByRole('button', { name: en['figure.resetView'], exact: true }).click();
+  await expect(overlay).toBeVisible();
+  await expect.poll(() => pixelSignature(canvas)).toBe(before);
+  expect(errors).toEqual([]);
+});
+
 test('shows the error state and fallback images when the model fails to load', async ({ page }) => {
   await page.route('**/models/human.glb', (route) => route.abort());
   await page.goto('/ai_health/en/dev/figure-spike/');
