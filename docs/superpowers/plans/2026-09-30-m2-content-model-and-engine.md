@@ -1,12 +1,12 @@
-# M2 Content Model & Engine — Implementation Plan (DRAFT for owner review)
+# M2 Content Model & Engine — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Status: DRAFT, 2026-09-30.** Written for the owner's morning review. Do not create issues or start Task 1 until the owner has answered the questions in [Open questions for the owner](#open-questions-for-the-owner) and approved the plan. Answers may change Tasks 3, 5, 6, 8, 11 and 12; update them first.
+> **Status: approved, 2026-09-30.** The owner answered the draft's open questions; the answers and spec decision D12 (equipment measurements are never required) are recorded in [Owner decisions (2026-09-30)](#owner-decisions-2026-09-30) and applied to every task below. Tasks 8 and 9 are written against the pose layer as merged in #45 (issue #40).
 
 **Goal:** Validated generic content (Zod schemas + Astro content collections + a cross-checked catalog), a browser-only profile module, and a pure planning engine (feasibility, week builder, time estimates, fit-to-time, short session), with engine tests green on synthetic profiles (spec §16 M2 exit criterion).
 
-**Architecture:** Zod schemas in `src/lib/content` define the content model once; `src/content.config.ts` feeds them to Astro content collections, and `src/catalog.ts` (the only Astro-aware piece) builds a cross-checked `Catalog` that fails the build on any broken reference. `src/lib/profile` owns the profile schema, migrations, JSON import/export and the only `localStorage` adapter. `src/lib/engine` is pure TypeScript: it takes a `Profile` and a `Catalog` and returns localizable `Message` objects, never finished strings; geometry checks pose exercises through "probes" (the M1 Smith-squat solver today, the M3 pose library later).
+**Architecture:** Zod schemas in `src/lib/content` define the content model once; `src/content.config.ts` feeds them to Astro content collections, and `src/catalog.ts` (the only Astro-aware piece) builds a cross-checked `Catalog` that fails the build on any broken reference. `src/lib/profile` owns the profile schema, migrations, JSON import/export and the only `localStorage` adapter. `src/lib/engine` is pure TypeScript: it takes a `Profile` and a `Catalog` and returns localizable `Message` objects, never finished strings; geometry checks pose exercises through "probes" (the M1 Smith-squat solver today, the M3 pose library later). Unmeasured stature, ceiling and equipment dimensions fall back to typical values (D12), so every check has an answer and nothing waits on a measurement.
 
 **Tech Stack:** Astro 7.3.5 content collections (`glob` loader, `src/content.config.ts`), Zod 4.6.5 (new direct dependency, same version Astro 7.3.5 bundles), TypeScript 6.0.3, Vitest 5.0.2, the M1 pose layer (`src/lib/figure/pose`), typed i18n dictionaries (`src/lib/i18n/{en,zh}.ts`).
 
@@ -21,31 +21,65 @@ Copied from the spec unless marked *(plan)*. Every task's requirements include t
 - §4.2: "`lib/profile` is the only module that touches `localStorage`. Everything else receives a `Profile` value."
 - §4.2: "Pages read content through Astro content collections; they never parse YAML themselves." *(plan)* `src/content.config.ts` and `src/catalog.ts` are the only files that import `astro:content`; nothing under `src/lib/**` imports Astro, the DOM or three.js.
 - §5: "All user-facing text is `I18n = { en: string; zh: string }`. The build fails if either language is missing. IDs are kebab-case and unique per collection. All cross-references are checked at build time."
-- §5.1: "`parameters` describe what can be measured. Values live only in the user's profile." "`illustrativeDefaults` exist so generic pages can draw the equipment. They are never used for feasibility."
-- §5.1: "Public content describes pulley, J-hook and catch positions in words (high / chest height / low). Hole numbers appear only in a user's personal plan." "Cable loads are shown as the numbers printed on the stack, in the stack's unit. `cableRatio` is optional and never guessed."
+- §3 D12: "Equipment measurements (2026-09-30): Never required. Plans and guides describe general movements and setups for each device type; geometry checks use typical (illustrative) dimensions, and a user can optionally enter their own. Hole numbers (§7.5) are dropped from v1."
+- §5.1: "`parameters` describe what can be measured. Values live only in the user's profile." *(plan)* §5.1's "`illustrativeDefaults` … are never used for feasibility" is superseded by D12 and §7.1: they are the typical dimensions the engine uses for every parameter the user has not measured.
+- §3 D9: "Words everywhere ("chest height"); no hole numbers in v1 (see D12)". §5.1: "Cable loads are shown as the numbers printed on the stack, in the stack's unit. `cableRatio` is optional and never guessed."
 - §5.3: "Cardio-machine sessions (treadmill, rower) may omit `figure`; every strength, core and mobility exercise has one."
 - §5.5: "`supersetWith` is a zero-based slot index on the same day. The engine keeps the pairing only when both picks share a station; otherwise the two slots run as straight sets." "The full-body day is volume-capped (at most 10 working sets, all at RIR ≥ 2)."
+- §9.1: "optional stature, ceiling height and limitations. No equipment measurements are asked for (D12)." *(plan)* The profile keeps `equipment[].params` as optional overrides of the typical dimensions; nothing in M2 prompts for them.
 - §6: "Stored under `localStorage` key `aih.profile`. Every read goes through the Zod schema. Every schema change bumps `version` and adds a migration." "Export produces a JSON file; import validates before overwriting anything." "No age, weight, name or free-text health notes are collected in v1."
-- §7.1 unknown inputs: "Unknown stature → every geometry check returns `needs-info`." "Unknown ceiling height → assume a 210 cm ceiling; exercises whose envelope plus margin exceeds that are `needs-info`, and the rest pass." "An unmeasured equipment parameter → only the checks that depend on it return `needs-info`." "`limitations` never change feasibility. They affect ranking and add safety notes."
+- §7.1 unknown inputs (D12): "Unknown stature → pose at a typical adult stature (175 cm); figures and checks say "typical height"." "Unknown ceiling height → assume a 240 cm ceiling. Exercises whose envelope plus margin exceeds it stay plannable but carry a localized "check overhead clearance" note." "An unmeasured equipment parameter → the equipment's `illustrativeDefaults` are used. `needs-info` is reserved for missing inputs that cannot be defaulted (none in v1)." "`limitations` never change feasibility. They affect ranking and add safety notes." *(plan)* v1 has no input that cannot be defaulted, so the engine has no `needs-info` status (YAGNI): `checkFeasibility` returns `feasible | infeasible`, and spec §7.2's "`needs-info` candidates are listed separately" does not apply. A later version that adds such an input adds the status back.
 - §7.2 ranking: "+3 same station as the previous pick of the day; +2 for each declared limitation whose joint has `low` stress; −3 for each declared limitation whose joint has `high` stress; −2 already used earlier in the week for another slot", "deterministic tie-break by id".
 - §7.3: "`minutes = warm-up + Σ sets × (reps × repSeconds + restSec) + transitions`". "A transition (`setupSeconds` of the incoming exercise) is charged whenever `setupState` changes: station, bench angle or pulley height." Fit to time "removes priority-3 slots first, then trims sets on priority-2 slots."
 - §7.4: "`shortSession(day)` keeps up to three priority-1 slots at 2 sets each with RIR ≥ 3."
 - §10: "UI strings live in typed dictionaries (`lib/i18n/en.ts`, `zh.ts`); a missing key is a type error." "Content fields are `I18n` objects checked by Zod." "Units are converted for display only; profiles and content are stored in metric."
 - §11: "Saved profile fails validation → Raw copy kept under `aih.profile.backup.<timestamp>`"; "`localStorage` unavailable → Planner runs in memory"; "Invalid import file → Field-level errors in the current language; nothing is overwritten"; "Older profile version → Migrated on load; the migration is covered by tests".
 - §13: "No personal data in the repository, issues, pull requests, commit messages, test fixtures or build logs. Fixtures use synthetic profiles." "The site makes no network requests with profile data." *(plan)* No equipment brand or model names anywhere. Every number in fixtures and content is invented or illustrative; never copy a measurement the owner shared in chat.
-- §14 testing: unit tests are colocated with the code they test; Engine: "Feasibility tri-state for every check, ranking, overrides, unfillable slots, time estimates, fit-to-time, short session"; Profile: "Schema, migrations, import error messages, backup-on-corruption"; Content integrity: "Every reference resolves; every template pattern has at least one exercise".
-- *(plan)* Out of scope: pages, wizard, planner UI and PDF (M4); the generalized pose library, other equipment builders and the figure sweep (M3); v1 exercise, template and guide content (M5); §7.5 hole numbers and §7.6 progression (see the open questions); issues #39 and #40.
+- §14 testing: unit tests are colocated with the code they test; Engine: "Feasibility tri-state for every check, ranking, overrides, unfillable slots, time estimates, fit-to-time, short session"; Profile: "Schema, migrations, import error messages, backup-on-corruption"; Content integrity: "Every reference resolves; every template pattern has at least one exercise". *(plan)* Without `needs-info` (D12), "tri-state" means feasible and infeasible for every check, plus the typical-value fallback for every unknown input.
+- *(plan)* Out of scope: pages, wizard, planner UI, PDF and §7.6 progression (M4); the generalized pose library, other equipment builders and the figure sweep (M3); v1 exercise, template and guide content (M5). §7.5 hole numbers are not in v1 at all (D12), so M2 has no hole-numbering parameter types or parameters.
+- *(plan)* Test ceilings: a room that is "tall enough" is a standard 8 ft ceiling, `8 * 30.48` = 243.84 cm (named `EIGHT_FT_CEILING_CM` in the engine fixtures, as in the pose tests); only deliberately low ceilings use other values.
 - Git (as in M0/M1): one branch + PR per issue (`m2/<issue#>-<slug>`), PR body contains `Closes #N`, squash-merge when CI is green. Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; PR bodies end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. Wait for CI with the app's PR tools, not by polling `gh`.
+
+## Owner decisions (2026-09-30)
+
+The owner approved the draft's 16 open questions as proposed, except where spec decision D12 (committed to the spec as 9bc5df7) supersedes them. Tasks refer to these by number.
+
+1. **Profile parameter values** use the §5.1 parameter value types (`ParamValue`), not `number | boolean | string[]`.
+2. **Figures:** exercises reference a figure by id, `figure: { spec: <id> }`, until M3 settles the generalized pose format.
+3. **Geometry before M3:** exercises without a pose model use a conservative envelope (standing = stature; `vertical-push` = 1.33 × stature; with a pull-up bar = bar height + 0.13 × stature) and no joint-range check. Smith-bar exercises without a pose model are never planned. Stature and bar height come from the profile or, when unmeasured, from typical defaults (D12).
+4. **Time estimates:** reps at the top of the range; unilateral work counts both sides; a 5-minute warm-up; the first exercise's setup counts; a kept superset skips the first exercise's rest.
+5. **Daily budget** = the shorter of the template day's `minutes` and the profile's `sessionMinutes`.
+6. **Full-body cap:** a `fullBody: true` day flag, checked at build time (≤ 10 working sets, RIR ≥ 2 on every slot).
+7. **Bench inside the rack** applies when an exercise uses a bench angle at the `smith` or `barbell` station.
+8. **Fields beyond the spec:** a bilingual `label` on every parameter; `uses` on attachments with `requires.attachmentUses` on exercises; `rir` optional on slots.
+9. **Enum value labels:** raw values in M2; M4 adds EN/中文 labels.
+10. **Owned loads** (stacks, dumbbells) are stored as printed, in lb or kg, never converted; lengths are stored in cm.
+11. **Pull-ups** use the `smith` station (same machine); no `pull-up-bar` station.
+12. **Superseded by D12.** An unknown stature poses at a typical 175 cm. It never returns `needs-info` and never empties the week.
+13. **§7.6 progression** moves to M4 with the planner UI. **§7.5 hole numbers** are dropped from v1 entirely (D12), not moved to M4: setups are described in words only.
+14. **Seed content:** three generic equipment classes (Smith + functional trainer, adjustable bench, dumbbells), the seven v1 attachments and the Smith squat (without alternatives); no templates until M5.
+15. **Vocabularies:** guide sections chest, back, shoulders, arms, lower-squat, lower-hinge, core, setup-safety; the 20 muscle ids in `vocab.ts`; bench angle stops 0–90° in 15° steps.
+16. **Corrupt saved profile:** the raw text is copied to `aih.profile.backup.<timestamp>` and `aih.profile` is removed.
+
+**D12 applied (equipment measurements are never required):**
+- Unknown stature → `TYPICAL_STATURE_CM = 175`. Unknown ceiling → `ASSUMED_CEILING_CM = 240`; an exercise whose envelope plus margin exceeds it stays feasible and carries the note `engine.note.checkClearance` (EN + 中文). A *measured* ceiling that is too low still makes the exercise infeasible.
+- An unmeasured (or wrongly typed) equipment parameter → the equipment's `illustrativeDefaults`. The catalog requires an illustrative default for every parameter the geometry checks read (`GEOMETRY_PARAMS`), so no check lacks an input.
+- `needs-info` is dropped (YAGNI; nothing in v1 needs it): `FeasibilityStatus = 'feasible' | 'infeasible'`, and there is no `MissingInfo`, `Feasibility.missing`, `measure` unlock, `SlotPlan.needsInfo` or `engine.missing.*` string. `Feasibility.notes` carries non-blocking notes instead.
+- `buildWeek` returns `Week.assumptions`: localizable messages saying the plan uses a typical height or an assumed ceiling (spec §7.1: checks say "typical height").
+- No hole numbers: the `holes` and `holes-range` parameter types and the `holeNumbering` and `pulleyHoleRange` parameters are gone. Because nothing is required, the parameter definition's `optional` flag is gone too.
+- The profile keeps optional `statureCm`, `room.ceilingHeightCm` and `limitations`; `equipment[].params` are optional overrides that nothing prompts for.
+
+**Pose layer as merged in #45:** Task 9 poses each Smith-squat frame with `checkFigureFrame(sk, spec, frame, { statureCm, smith: ILLUSTRATIVE_SMITH })`, the single helper that solves and validates from one set of inputs, instead of calling `solveSmithSquat` and `validateSmithSquat` separately. Its signed ROM findings, including the documented magnitude-only elbow exception for the Smith squat, become the engine's ROM check; its anchor, feet-flat, bar-on-rail and bone-length findings become the pose check. Bar travel and ceiling are checked by the engine against the profile's or the typical values, with localized messages.
 
 ## File Map
 
 ```
 package.json, package-lock.json                       (Task 1: add zod 4.6.5)
-src/lib/content/vocab.ts                              closed vocabularies (patterns, stations, joints, …)
+src/lib/content/vocab.ts                              closed vocabularies (patterns, stations, joints, geometry params, …)
 src/lib/content/common.ts                             Id, ParamName and I18nText schemas
 src/lib/content/params.ts (+ params.test.ts)          parameter definitions and value types
 src/lib/content/schemas.ts (+ schemas.test.ts)        equipment, attachment, exercise, template schemas
-src/lib/content/catalog.ts (+ catalog.test.ts)        buildCatalog(): index + cross-reference checks
+src/lib/content/catalog.ts (+ catalog.test.ts)        buildCatalog(): index, cross-reference checks, typical defaults present
 src/lib/units.ts (+ units.test.ts)                    metric ⇄ display conversion
 src/lib/i18n/format.ts (+ format.test.ts)             Message type, formatMessage, formatLength/Mass/Load
 src/lib/i18n/{en,zh}.ts                               + unit, joint, engine and profile strings
@@ -62,10 +96,10 @@ src/lib/profile/parse.ts                              migrate + validate + field
 src/lib/profile/transfer.ts (+ transfer.test.ts)      JSON export / import
 src/lib/profile/storage.ts (+ storage.test.ts)        ProfileStore: localStorage or memory, backups
 src/lib/profile/index.ts                              public API
-src/lib/engine/types.ts                               Feasibility, Reason, MissingInfo, Unlock
-src/lib/engine/params.ts                              findParam(), owned capabilities, providers
-src/lib/engine/geometry.ts (+ geometry.test.ts)       ceiling, bar travel, bench fit, ROM; probe types
-src/lib/engine/probes.ts (+ probes.test.ts)           Smith-squat probe on the M1 pose layer; DEFAULT_PROBES
+src/lib/engine/types.ts                               Feasibility (feasible | infeasible), Reason, Unlock
+src/lib/engine/params.ts                              paramValue(): measured or typical; owned capabilities, providers
+src/lib/engine/geometry.ts (+ geometry.test.ts)       typical stature/ceiling, ceiling, bar travel, bench fit, ROM; probe types
+src/lib/engine/probes.ts (+ probes.test.ts)           Smith-squat probe via checkFigureFrame; DEFAULT_PROBES
 src/lib/engine/feasibility.ts (+ feasibility.test.ts) checkFeasibility()
 src/lib/engine/plan.ts (+ plan.test.ts)               SlotPlan/DayPlan/Week, estimateDay, fitToTime
 src/lib/engine/week.ts (+ week.test.ts)               rankCandidates, limitationNotes, buildWeek
@@ -80,9 +114,9 @@ Dependency order: 1 → 3 → 4 → 5; 1 + 2 → 6 → 7; 1–6 → 8 → 9 → 
 
 ---
 
-### Task 0: GitHub tracking (after owner approval only)
+### Task 0: GitHub tracking
 
-No code. The M2 milestone and the M2 epic (#17) already exist. Issue #40 (pose robustness) is tracked separately in the same milestone; if it lands first and changes `solveSmithSquat`, `carriedBarCenter`, `headTop`, `jointAngles` or `ROM_LIMITS`, adapt Task 10's probe to the new API before starting it.
+No code. The M2 milestone and the M2 epic (#17) already exist. Issue #40 (pose robustness, same milestone) is closed; Tasks 8 and 9 already use the pose API it merged (`checkFigureFrame`, signed ROM limits, `SmithParams`).
 
 | Task | Issue title | Labels | Milestone | Issue # |
 |---|---|---|---|---|
@@ -93,7 +127,7 @@ No code. The M2 milestone and the M2 epic (#17) already exist. Issue #40 (pose r
 | 5 | Content collections, generic seed content and build-time checks | area:fitness, type:content | M2 Content model & engine | |
 | 6 | Profile schema, migrations and JSON import/export | area:fitness, type:feature | M2 Content model & engine | |
 | 7 | Profile storage adapter (localStorage, memory, backups) | area:fitness, type:feature | M2 Content model & engine | |
-| 8 | Engine geometry checks | area:fitness, type:feature | M2 Content model & engine | |
+| 8 | Engine geometry checks with typical defaults | area:fitness, type:feature | M2 Content model & engine | |
 | 9 | Smith squat geometry probe | area:fitness, area:figures, type:feature | M2 Content model & engine | |
 | 10 | Feasibility | area:fitness, type:feature | M2 Content model & engine | |
 | 11 | Time estimates and fit to time | area:fitness, type:feature | M2 Content model & engine | |
@@ -114,21 +148,23 @@ Write each printed number into the table.
 
 - [ ] **Step 2: Commit the plan with the issue numbers**
 
+The plan (and spec decision D12) live on branch `docs/m2-plan`, whose pull request (#44) is still a draft.
 ```bash
-git checkout main && git pull && git checkout -b chore/m2-plan
+git checkout docs/m2-plan && git pull
 git add docs/superpowers/plans/2026-09-30-m2-content-model-and-engine.md
-git commit -m $'docs: add the M2 plan with issue numbers\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
-git push -u origin HEAD
-gh pr create --repo tomqwu/ai_health --title "docs: M2 content model & engine plan" --body $'Plan for milestone M2 (#17).\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'
+git commit -m $'docs(plans): add the M2 issue numbers\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
+git push
+gh pr edit 44 --repo tomqwu/ai_health --title "docs: M2 content model & engine plan, spec D12"
+gh pr ready 44 --repo tomqwu/ai_health
 ```
-Merge when CI is green: `gh pr merge --squash --delete-branch && git checkout main && git pull`.
+Merge when CI is green: `gh pr merge 44 --repo tomqwu/ai_health --squash --delete-branch && git checkout main && git pull`.
 
 **Every later task** starts with `git checkout main && git pull && git checkout -b m2/<issue>-<slug>` and ends with the commit/PR/merge step shown in it; replace `<issue>` with the number from the table.
 
 ---
 ### Task 1: Content vocabularies, Zod and parameter types
 
-Adds Zod and the building blocks every schema shares: closed vocabularies, id and text schemas, and the ten equipment parameter types of spec §5.1 with their stored-value shapes.
+Adds Zod and the building blocks every schema shares: closed vocabularies, id and text schemas, and the equipment parameter types of spec §5.1 with their stored-value shapes. D12 drops hole numbers from v1, so the two hole types (`holes`, `holes-range`) are left out, leaving eight types; and since no measurement is ever required, parameter definitions have no `optional` flag.
 
 **Files:**
 - Modify: `package.json`, `package-lock.json` (add `zod`)
@@ -138,9 +174,9 @@ Adds Zod and the building blocks every schema shares: closed vocabularies, id an
 **Interfaces:**
 - Consumes: nothing new.
 - Produces:
-  - `vocab.ts`: `PATTERNS`/`Pattern`, `CARDIO_PATTERNS`, `EQUIPMENT_KINDS`, `STATIONS`/`Station`, `RACK_STATIONS`, `PULLEY_POSITIONS`, `EXERCISE_TAGS`, `JOINTS`/`Joint` (`'knee' | 'lowBack' | 'shoulder' | 'wrist'`), `STRESS_LEVELS`, `LIMITATIONS`/`Limitation`, `LIMITATION_JOINT: Record<Limitation, Joint>`, `GUIDE_SECTIONS`, `MUSCLES`, `WEEKDAYS`/`Weekday`, `DAY_KINDS`/`DayKind`, `LOAD_UNITS`/`LoadUnit`.
+  - `vocab.ts`: `PATTERNS`/`Pattern`, `CARDIO_PATTERNS`, `EQUIPMENT_KINDS`, `STATIONS`/`Station`, `RACK_STATIONS`, `PULLEY_POSITIONS`, `EXERCISE_TAGS`, `JOINTS`/`Joint` (`'knee' | 'lowBack' | 'shoulder' | 'wrist'`), `STRESS_LEVELS`, `LIMITATIONS`/`Limitation`, `LIMITATION_JOINT: Record<Limitation, Joint>`, `GUIDE_SECTIONS`, `MUSCLES`, `WEEKDAYS`/`Weekday`, `DAY_KINDS`/`DayKind`, `LOAD_UNITS`/`LoadUnit`, `GEOMETRY_PARAMS`/`GeometryParam` (`'smithLowestBarHeightCm' | 'smithHighestBarHeightCm' | 'pullUpBarHeightCm' | 'benchFitsInsideRack'`: the parameters the engine's geometry checks read).
   - `common.ts`: `IdSchema` (kebab-case), `ParamNameSchema` (camelCase), `I18nTextSchema` (`{ en, zh }`, both non-empty, `zh` must contain Chinese characters).
-  - `params.ts`: `PARAM_TYPES`, `ParamDefSchema`/`ParamDef` (discriminated on `type`; every def has `label`, `how`, optional `optional`; `enum`/`enum-set` have `values`), `ParamValueSchema`/`ParamValue`, `HolesValue`, `HolesRangeValue`, `StackValue`, `WeightsValue`, `paramValueSchema(def): z.ZodType`, `paramValueMatches(def, value): value is ParamValue`.
+  - `params.ts`: `PARAM_TYPES` (`cm`, `deg`, `bool`, `count`, `enum`, `enum-set`, `stack`, `weights`), `ParamDefSchema`/`ParamDef` (discriminated on `type`; every def has `label` and `how`; `enum`/`enum-set` have `values`), `ParamValueSchema`/`ParamValue`, `StackValue`, `WeightsValue`, `paramValueSchema(def): z.ZodType`, `paramValueMatches(def, value): value is ParamValue`.
 
 - [ ] **Step 1: Branch and add Zod**
 
@@ -186,6 +222,11 @@ describe('ParamDefSchema', () => {
     expect(ParamDefSchema.safeParse({ type: 'inch', label: text, how: text }).success).toBe(false);
     expect(ParamDefSchema.safeParse({ type: 'cm', label: text, how: text, unit: 'cm' }).success).toBe(false);
   });
+  it('has no hole types and no optional flag (D12: no hole numbers, nothing required)', () => {
+    expect(ParamDefSchema.safeParse({ type: 'holes', label: text, how: text }).success).toBe(false);
+    expect(ParamDefSchema.safeParse({ type: 'holes-range', label: text, how: text }).success).toBe(false);
+    expect(ParamDefSchema.safeParse({ type: 'cm', label: text, how: text, optional: true }).success).toBe(false);
+  });
 });
 
 describe('paramValueMatches', () => {
@@ -208,15 +249,7 @@ describe('paramValueMatches', () => {
     expect(paramValueMatches(s, ['high', 'high'])).toBe(false);
     expect(paramValueMatches(s, ['middle'])).toBe(false);
   });
-  it('requires holes to increase', () => {
-    const h = def({ type: 'holes' });
-    expect(paramValueMatches(h, { firstHole: 1, firstHeightCm: 20, lastHole: 24, lastHeightCm: 204 })).toBe(true);
-    expect(paramValueMatches(h, { firstHole: 24, firstHeightCm: 20, lastHole: 1, lastHeightCm: 204 })).toBe(false);
-    expect(paramValueMatches(h, { firstHole: 1, firstHeightCm: 204, lastHole: 24, lastHeightCm: 20 })).toBe(false);
-  });
-  it('checks hole ranges, stacks and weights', () => {
-    expect(paramValueMatches(def({ type: 'holes-range' }), { minHole: 3, maxHole: 20 })).toBe(true);
-    expect(paramValueMatches(def({ type: 'holes-range' }), { minHole: 20, maxHole: 3 })).toBe(false);
+  it('checks stacks and weights', () => {
     const stack = def({ type: 'stack' });
     expect(paramValueMatches(stack, { first: 5, last: 80, step: 5, unit: 'kg' })).toBe(true);
     expect(paramValueMatches(stack, { first: 80, last: 5, step: 5, unit: 'kg' })).toBe(false);
@@ -350,6 +383,14 @@ export type DayKind = (typeof DAY_KINDS)[number];
 
 export const LOAD_UNITS = ['lb', 'kg'] as const;
 export type LoadUnit = (typeof LOAD_UNITS)[number];
+
+/**
+ * Equipment parameters the engine's geometry checks read (spec §7.1 check 4). D12: when the user has not
+ * measured one, the engine uses the equipment's illustrative default, so the catalog requires a default
+ * for each of these on every equipment that defines it.
+ */
+export const GEOMETRY_PARAMS = ['smithLowestBarHeightCm', 'smithHighestBarHeightCm', 'pullUpBarHeightCm', 'benchFitsInsideRack'] as const;
+export type GeometryParam = (typeof GEOMETRY_PARAMS)[number];
 ```
 
 `src/lib/content/common.ts`:
@@ -377,29 +418,11 @@ import { z } from 'zod';
 import { I18nTextSchema } from './common';
 import { LOAD_UNITS } from './vocab';
 
-/** Spec §5.1 parameter types. */
-export const PARAM_TYPES = ['cm', 'deg', 'bool', 'count', 'enum', 'enum-set', 'holes', 'holes-range', 'stack', 'weights'] as const;
+/** Spec §5.1 parameter types, without the hole-numbering types (D12: no hole numbers in v1). */
+export const PARAM_TYPES = ['cm', 'deg', 'bool', 'count', 'enum', 'enum-set', 'stack', 'weights'] as const;
 export type ParamType = (typeof PARAM_TYPES)[number];
 
 const LoadUnitSchema = z.enum(LOAD_UNITS);
-
-/** Numbered holes: first/last hole number and their heights; spacing is linear and must increase. */
-export const HolesValueSchema = z
-  .strictObject({
-    firstHole: z.number().int().min(0),
-    firstHeightCm: z.number().min(0),
-    lastHole: z.number().int().min(1),
-    lastHeightCm: z.number().positive(),
-  })
-  .refine((v) => v.lastHole > v.firstHole && v.lastHeightCm > v.firstHeightCm, {
-    message: 'hole numbers and heights must both increase',
-  });
-export type HolesValue = z.output<typeof HolesValueSchema>;
-
-export const HolesRangeValueSchema = z
-  .strictObject({ minHole: z.number().int().min(0), maxHole: z.number().int().min(0) })
-  .refine((v) => v.maxHole >= v.minHole, { message: 'maxHole must be at least minHole' });
-export type HolesRangeValue = z.output<typeof HolesRangeValueSchema>;
 
 /** A weight stack as printed: first and last number, the step between plates, and the printed unit. */
 export const StackValueSchema = z
@@ -419,8 +442,6 @@ export const ParamValueSchema = z.union([
   z.boolean(),
   z.string(),
   z.array(z.string()),
-  HolesValueSchema,
-  HolesRangeValueSchema,
   StackValueSchema,
   WeightsValueSchema,
 ]);
@@ -429,11 +450,13 @@ export type ParamValue = z.output<typeof ParamValueSchema>;
 const base = {
   label: I18nTextSchema,
   how: I18nTextSchema,
-  optional: z.boolean().optional(),
 };
 const Values = z.array(z.string().min(1)).min(1);
 
-/** How to measure one equipment parameter (spec §5.1). Values live only in the user's profile. */
+/**
+ * How to measure one equipment parameter (spec §5.1). Values live only in the user's profile, and none is
+ * ever required (D12): an unmeasured parameter uses the equipment's illustrative default.
+ */
 export const ParamDefSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('cm'), ...base }),
   z.strictObject({ type: z.literal('deg'), ...base }),
@@ -441,8 +464,6 @@ export const ParamDefSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('count'), ...base }),
   z.strictObject({ type: z.literal('enum'), values: Values, ...base }),
   z.strictObject({ type: z.literal('enum-set'), values: Values, ...base }),
-  z.strictObject({ type: z.literal('holes'), ...base }),
-  z.strictObject({ type: z.literal('holes-range'), ...base }),
   z.strictObject({ type: z.literal('stack'), ...base }),
   z.strictObject({ type: z.literal('weights'), ...base }),
 ]);
@@ -465,10 +486,6 @@ export function paramValueSchema(def: ParamDef): z.ZodType {
       return z
         .array(z.enum(def.values as [string, ...string[]]))
         .refine((a) => new Set(a).size === a.length, { message: 'values must be unique' });
-    case 'holes':
-      return HolesValueSchema;
-    case 'holes-range':
-      return HolesRangeValueSchema;
     case 'stack':
       return StackValueSchema;
     case 'weights':
@@ -497,7 +514,7 @@ gh pr create --repo tomqwu/ai_health --title "Content vocabularies, Zod and para
 ```
 When CI is green: `gh pr merge --squash --delete-branch && git checkout main && git pull`.
 
-**Done when:** `zod@4.6.5` is a direct dependency and every parameter type accepts valid values and rejects invalid ones.
+**Done when:** `zod@4.6.5` is a direct dependency, every parameter type accepts valid values and rejects invalid ones, and there are no hole-numbering types.
 
 ---
 
@@ -515,7 +532,7 @@ Pure code must never produce finished strings. This task adds a `Message` type (
 - Produces:
   - `units.ts`: `LengthUnit = 'cm' | 'in'`, `MassUnit = 'kg' | 'lb'`, `CM_PER_INCH`, `KG_PER_LB`, `cmToDisplay(cm, unit)`, `displayToCm(value, unit)`, `kgToDisplay(kg, unit)`, `displayToKg(value, unit)`.
   - `format.ts`: `MessageParam` (string | number | I18nText | I18nText[] | `{ lengthCm }` | `{ key: MessageKey }`), `Message = { key: MessageKey; params? }`, `FormatOptions = { length?: LengthUnit }`, `formatMessage(locale, msg, opts?)`, `formatLength(locale, cm, unit)`, `formatMass(locale, kg, unit)`, `formatLoad(locale, value, unit)`, `placeholders(text)`.
-  - Dictionary keys: `unit.length.cm|in`, `unit.mass.kg|lb`, `joint.knee|lowBack|shoulder|wrist`, `engine.reason.*`, `engine.missing.*`, `engine.why.*`, `engine.notice.*`, `engine.empty.*`, `engine.note.*`, `profile.error.*` (full list in Step 4).
+  - Dictionary keys: `unit.length.cm|in`, `unit.mass.kg|lb`, `joint.knee|lowBack|shoulder|wrist`, `engine.reason.*`, `engine.why.*`, `engine.notice.*`, `engine.empty.*`, `engine.note.*` (including `engine.note.checkClearance`, D12), `engine.assumed.*` (typical height, assumed ceiling), `profile.error.*` (full list in Step 4). There are no `engine.missing.*` strings: nothing is ever required (D12).
 
 - [ ] **Step 1: Branch**
 
@@ -594,6 +611,15 @@ describe('formatMessage', () => {
     expect(formatMessage('en', msg)).toContain('240 cm');
     expect(formatMessage('en', msg, { length: 'in' })).toContain('94.5 in');
     expect(formatMessage('zh', msg)).toContain('240 厘米');
+  });
+  it('formats the clearance note for an assumed ceiling (D12)', () => {
+    const msg = {
+      key: 'engine.note.checkClearance',
+      params: { need: { lengthCm: 243 }, margin: { lengthCm: 10 }, ceiling: { lengthCm: 240 } },
+    } as const;
+    expect(formatMessage('en', msg)).toContain('about 243 cm of height');
+    expect(formatMessage('en', msg, { length: 'in' })).toContain('so 94.5 in was assumed');
+    expect(formatMessage('zh', msg)).toContain('按 240 厘米 估算');
   });
   it('looks up nested dictionary keys', () => {
     const msg = { key: 'engine.why.easyOnJoint', params: { joint: { key: 'joint.knee' } } } as const;
@@ -757,12 +783,9 @@ Append to the `en` object in `src/lib/i18n/en.ts`, after the last entry (`'angle
   'engine.reason.barBelowStop': 'The bar would go down to {height}, below the lowest stop at {stop}',
   'engine.reason.barAboveStop': 'The bar would rise to {height}, above the highest stop at {stop}',
   'engine.reason.benchFit': 'Your bench does not fit inside the rack',
-  'engine.reason.rom': 'At your height this movement goes past a safe joint range',
-  'engine.reason.noGeometryModel': 'This exercise cannot be checked against your machine yet',
-  'engine.reason.poseFailed': 'This movement could not be fitted to your measurements',
-  'engine.missing.stature': 'Your height',
-  'engine.missing.ceiling': 'Your ceiling height',
-  'engine.missing.param': '{equipment}: {param}',
+  'engine.reason.rom': 'At this height the movement goes past a safe joint range',
+  'engine.reason.noGeometryModel': 'This exercise cannot be checked on this machine yet',
+  'engine.reason.poseFailed': 'This movement could not be posed at this height',
   'engine.why.fits': 'Fits your equipment and space',
   'engine.why.override': 'Your choice',
   'engine.why.sameStation': 'Same station as the previous exercise',
@@ -775,6 +798,9 @@ Append to the `en` object in `src/lib/i18n/en.ts`, after the last entry (`'angle
   'engine.empty.noneFeasible': 'No matching exercise fits your setup',
   'engine.note.jointModerate': 'You marked your {joint} as sensitive; this exercise puts moderate stress on it. Go lighter and stop if it hurts.',
   'engine.note.jointHigh': 'You marked your {joint} as sensitive; this exercise puts high stress on it. Go lighter and stop if it hurts.',
+  'engine.note.checkClearance': 'Check your overhead clearance: this movement needs about {need} of height, including a {margin} margin. Your ceiling height is not set, so {ceiling} was assumed.',
+  'engine.assumed.stature': 'Planned for a typical height of {height}. Add your height for a personal check.',
+  'engine.assumed.ceiling': 'Your ceiling height is not set, so overhead clearance is checked against {ceiling}.',
   'profile.error.notJson': 'The file is not valid JSON',
   'profile.error.notProfile': 'The file is not a saved profile from this site',
   'profile.error.newerVersion': 'The file comes from a newer version of this site (profile version {version})',
@@ -804,12 +830,9 @@ Append to the `zh` object in `src/lib/i18n/zh.ts`, after `'angle.elbow': '肘',`
   'engine.reason.barBelowStop': '杠铃需要降到 {height}，低于最低限位 {stop}',
   'engine.reason.barAboveStop': '杠铃需要升到 {height}，高于最高限位 {stop}',
   'engine.reason.benchFit': '你的训练凳放不进架子内',
-  'engine.reason.rom': '按你的身高，这个动作会超出关节的安全活动范围',
-  'engine.reason.noGeometryModel': '暂时还无法根据你的器械检查这个动作',
-  'engine.reason.poseFailed': '无法按你的尺寸完成这个动作',
-  'engine.missing.stature': '你的身高',
-  'engine.missing.ceiling': '你的天花板高度',
-  'engine.missing.param': '{equipment}的{param}',
+  'engine.reason.rom': '按这个身高，这个动作会超出关节的安全活动范围',
+  'engine.reason.noGeometryModel': '暂时还无法在这台器械上检查这个动作',
+  'engine.reason.poseFailed': '无法按这个身高摆出这个动作的姿势',
   'engine.why.fits': '适合你的器械和空间',
   'engine.why.override': '你的选择',
   'engine.why.sameStation': '与上一个动作使用同一器械',
@@ -822,6 +845,9 @@ Append to the `zh` object in `src/lib/i18n/zh.ts`, after `'angle.elbow': '肘',`
   'engine.empty.noneFeasible': '没有符合你器械条件的动作',
   'engine.note.jointModerate': '你标记了{joint}敏感；这个动作对该部位有中等负荷。请减轻重量，如有疼痛立即停止。',
   'engine.note.jointHigh': '你标记了{joint}敏感；这个动作对该部位负荷较大。请减轻重量，如有疼痛立即停止。',
+  'engine.note.checkClearance': '请确认头顶空间：这个动作需要约 {need} 的高度（含 {margin} 余量）。你尚未填写天花板高度，因此按 {ceiling} 估算。',
+  'engine.assumed.stature': '按 {height} 的常见身高安排。填写你的身高可获得个人化检查。',
+  'engine.assumed.ceiling': '你尚未填写天花板高度，头顶空间按 {ceiling} 估算。',
   'profile.error.notJson': '文件不是有效的 JSON',
   'profile.error.notProfile': '文件不是本站保存的个人资料',
   'profile.error.newerVersion': '文件来自本站的较新版本（资料版本 {version}）',
@@ -836,7 +862,7 @@ Append to the `zh` object in `src/lib/i18n/zh.ts`, after `'angle.elbow': '肘',`
 - [ ] **Step 5: Run the tests and the checks**
 
 Run: `npx vitest run src/lib/units.test.ts src/lib/i18n && npm run lint && npm run check`
-Expected: `units.test.ts` 4 passed, `format.test.ts` 7 passed, the existing `i18n.test.ts` still 12 passed (key parity, no empty strings, Chinese in every `zh` entry); 0 lint and type errors. A key added to only one dictionary is a type error in `zh.ts`.
+Expected: `units.test.ts` 4 passed, `format.test.ts` 8 passed, the existing `i18n.test.ts` still 12 passed (key parity, no empty strings, Chinese in every `zh` entry); 0 lint and type errors. A key added to only one dictionary is a type error in `zh.ts`.
 
 - [ ] **Step 6: Commit, open the PR, merge when CI is green**
 
@@ -865,7 +891,7 @@ The single definition of the content model (spec §5). Astro collections (Task 5
 - Consumes: Task 1 (`IdSchema`, `ParamNameSchema`, `I18nTextSchema`, `ParamDefSchema`, `ParamValueSchema`, vocabularies).
 - Produces: `EquipmentSchema`/`Equipment`, `AttachmentSchema`/`Attachment` (with optional `uses: { id, name }[]`), `SetupStateSchema`/`SetupState`, `ExerciseSchema`/`Exercise` (with `requires.attachmentUses: Record<attachmentId, useId>` and `figure?: { spec: string }`), `RepsSchema`/`Reps` (`[low, high]` or `{ seconds }`), `SlotSchema`/`Slot` (optional `rir`), `DaySchema`/`Day` (optional `fullBody`), `TemplateSchema`/`Template`, `FULL_BODY_MAX_SETS = 10`, `FULL_BODY_MIN_RIR = 2`, `slotPatterns(slot): Pattern[]`. Types are `z.output<…>`, so defaulted arrays and maps are always present.
 
-Plan decisions (see open questions 2, 6, 7, 8): parameter definitions carry a bilingual `label`; exercises reference a figure by id (`figure.spec`) instead of embedding frames; `fullBody: true` marks the volume-capped day; `rir` is optional so cardio slots need none.
+Owner decisions 2, 6, 7 and 8: parameter definitions carry a bilingual `label`; exercises reference a figure by id (`figure.spec`) instead of embedding frames; `fullBody: true` marks the volume-capped day; `rir` is optional so cardio slots need none.
 
 - [ ] **Step 1: Branch**
 
@@ -1042,7 +1068,7 @@ export const EquipmentSchema = z.strictObject({
   name: I18nTextSchema,
   capabilities: z.array(IdSchema).min(1),
   parameters: z.record(ParamNameSchema, ParamDefSchema).default({}),
-  /** Drawing values for generic pages only; never used for feasibility. */
+  /** Typical dimensions (D12): drawn on generic pages, and used by the engine for every unmeasured parameter. */
   illustrativeDefaults: z.record(ParamNameSchema, ParamValueSchema).default({}),
   /** Parametric builder id in lib/figure (checked from M3). */
   model3d: IdSchema.optional(),
@@ -1227,10 +1253,10 @@ Per-entry schemas cannot see other entries. `buildCatalog` indexes all content a
 - Test: `src/lib/content/catalog.test.ts`
 
 **Interfaces:**
-- Consumes: Task 3 types and `slotPatterns`; `paramValueMatches` (Task 1); `FIGURES` from `src/lib/figure/fixtures` (M1).
+- Consumes: Task 3 types and `slotPatterns`; `paramValueMatches` and `GEOMETRY_PARAMS` (Task 1); `FIGURES` from `src/lib/figure/fixtures` (M1).
 - Produces: `Catalog = { equipment, attachments, exercises, templates: ReadonlyMap<string, T> }`, `CatalogInput` (arrays), `CatalogOptions = { figureIds?: ReadonlySet<string> }`, `class CatalogError extends Error { problems: readonly string[] }`, `buildCatalog(input, opts?): Catalog` (throws `CatalogError`).
 
-Checks: duplicate ids; illustrative defaults name a parameter and match its type; attachment `fits` and exercise `requires.capabilities` are provided by some equipment; required attachments exist; attachment uses are declared and valid; alternatives exist; `figure.spec` exists in `FIGURES`; every template slot has at least one exercise of its pattern(s).
+Checks: duplicate ids; illustrative defaults name a parameter and match its type; every parameter the geometry checks read (`GEOMETRY_PARAMS`) has an illustrative default, so the engine always has a typical value (D12); attachment `fits` and exercise `requires.capabilities` are provided by some equipment; required attachments exist; attachment uses are declared and valid; alternatives exist; `figure.spec` exists in `FIGURES`; every template slot has at least one exercise of its pattern(s).
 
 - [ ] **Step 1: Branch**
 
@@ -1359,6 +1385,12 @@ describe('buildCatalog', () => {
     ]);
   });
 
+  it('requires a typical value for every parameter the geometry checks read (D12)', () => {
+    expect(problemsOf(input({ equipment: [{ ...smith, illustrativeDefaults: {} }] }))).toEqual([
+      'equipment "smith-functional-trainer": parameter "smithLowestBarHeightCm" is read by the geometry checks and needs an illustrative default',
+    ]);
+  });
+
   it('requires an exercise for every template slot', () => {
     const tpl = TemplateSchema.parse({
       ...template,
@@ -1380,6 +1412,7 @@ Expected: FAIL — `Failed to resolve import "./catalog"`.
 import { FIGURES } from '../figure/fixtures';
 import { paramValueMatches } from './params';
 import { type Attachment, type Equipment, type Exercise, type Template, slotPatterns } from './schemas';
+import { GEOMETRY_PARAMS } from './vocab';
 
 /** All generic content, validated and cross-checked. The engine only ever sees this. */
 export interface Catalog {
@@ -1436,6 +1469,12 @@ export function buildCatalog(input: CatalogInput, opts: CatalogOptions = {}): Ca
       if (!def) problems.push(`equipment "${eq.id}": illustrative default "${name}" is not a parameter`);
       else if (!paramValueMatches(def, value)) problems.push(`equipment "${eq.id}": illustrative default "${name}" is not a valid ${def.type}`);
     }
+    // D12: the engine uses the typical value whenever the user has not measured, so it must exist.
+    for (const name of GEOMETRY_PARAMS) {
+      if (eq.parameters[name] && eq.illustrativeDefaults[name] === undefined) {
+        problems.push(`equipment "${eq.id}": parameter "${name}" is read by the geometry checks and needs an illustrative default`);
+      }
+    }
   }
 
   for (const at of attachments.values()) {
@@ -1489,7 +1528,7 @@ export function buildCatalog(input: CatalogInput, opts: CatalogOptions = {}): Ca
 - [ ] **Step 5: Run the tests and the checks**
 
 Run: `npx vitest run src/lib/content && npm run lint && npm run check`
-Expected: `catalog.test.ts` 8 passed (32 in `src/lib/content`); 0 lint and type errors.
+Expected: `catalog.test.ts` 9 passed (33 in `src/lib/content`); 0 lint and type errors.
 
 - [ ] **Step 6: Commit, open the PR, merge when CI is green**
 
@@ -1502,7 +1541,7 @@ gh pr create --repo tomqwu/ai_health --title "Catalog builder with cross-referen
 ```
 When CI is green: `gh pr merge --squash --delete-branch && git checkout main && git pull`.
 
-**Done when:** each cross-reference rule has a passing test and valid input indexes by id.
+**Done when:** each cross-reference rule, including the typical-value rule for geometry parameters, has a passing test and valid input indexes by id.
 
 ---
 
@@ -1510,7 +1549,7 @@ When CI is green: `gh pr merge --squash --delete-branch && git checkout main && 
 
 Wires the schemas into Astro content collections, adds the first generic content, and makes `npm run build` fail on any content error (spec §14: "Build (Zod + cross-reference checks)").
 
-Seed content is deliberately small (open question 14): the three equipment classes the engine tests need, all seven v1 attachments and the M1 exercise. Illustrative defaults match `ILLUSTRATIVE_SMITH` in `src/lib/figure/geometry/smith.ts` (what the figures draw). The `templates` collection stays empty until M5, so the build logs two expected warnings (`No files found matching "*.yaml" in directory "src/content/templates"` and `The collection "templates" does not exist or is empty`).
+Seed content is deliberately small (owner decision 14): the three equipment classes the engine tests need, all seven v1 attachments and the M1 exercise. Illustrative defaults describe the same typical machine as `ILLUSTRATIVE_SMITH` in `src/lib/figure/geometry/smith.ts` (what the figures draw), and every parameter in `GEOMETRY_PARAMS` has one, because the engine uses them whenever the user has not measured (D12). Setups are described in words only: there is no `holeNumbering` or `pulleyHoleRange` parameter (D12). The `templates` collection stays empty until M5, so the build logs two expected warnings (`No files found matching "*.yaml" in directory "src/content/templates"` and `The collection "templates" does not exist or is empty`).
 
 **Files:**
 - Create: `src/content.config.ts`, `src/catalog.ts`
@@ -1594,12 +1633,6 @@ kind: station
 name: { en: Smith machine + functional trainer, zh: 史密斯机综合训练器 }
 capabilities: [smith-bar, rack-uprights, j-hooks, spotter-arms, safety-catches, cable-column, pull-up-bar]
 parameters:
-  holeNumbering:
-    type: holes
-    label: { en: Hole numbering on the uprights, zh: 立柱孔位编号 }
-    how:
-      en: "If the uprights are numbered: floor to the center of the lowest and highest numbered holes, and their numbers"
-      zh: "如果立柱上有编号：量出地面到最低和最高编号孔中心的高度，并记下这两个编号"
   smithLowestBarHeightCm:
     type: cm
     label: { en: Lowest Smith bar height, zh: 史密斯杠最低高度 }
@@ -1661,13 +1694,6 @@ parameters:
     how:
       en: "Tick every height the pulleys can be set to"
       zh: "勾选滑轮可以调节到的所有高度"
-  pulleyHoleRange:
-    type: holes-range
-    optional: true
-    label: { en: Pulley carriage hole range, zh: 滑轮滑座孔位范围 }
-    how:
-      en: "Adjustable carriages: lowest and highest hole the carriage pins into"
-      zh: "可调滑座：滑座能插入的最低和最高孔位编号"
   cableStack:
     type: stack
     label: { en: Weight stack, zh: 配重片 }
@@ -1677,7 +1703,6 @@ parameters:
   cableRatio:
     type: enum
     values: ["1:1", "2:1", "4:1", unknown]
-    optional: true
     label: { en: Cable ratio, zh: 拉力比 }
     how:
       en: "From the manual; leave unknown if unsure"
@@ -1688,7 +1713,8 @@ parameters:
     how:
       en: "Can the bench, backrest included, sit fully between the uprights at every angle you use?"
       zh: "训练凳（包括靠背）在你使用的每个角度下，能否完全放在立柱之间？"
-# Drawing values for generic pages only (labeled "illustrative"); never used for feasibility.
+# Typical dimensions (D12): drawn on generic pages (labeled "illustrative") and used by the geometry
+# checks for anything the user has not measured. Not anyone's machine.
 illustrativeDefaults:
   smithLowestBarHeightCm: 40
   smithHighestBarHeightCm: 180
@@ -1696,6 +1722,8 @@ illustrativeDefaults:
   rackInnerDepthCm: 100
   rackInnerWidthCm: 120
   rackHeightCm: 215
+  pullUpBarHeightCm: 210
+  benchFitsInsideRack: true
 ```
 
 `src/content/equipment/adjustable-bench.yaml`:
@@ -1877,9 +1905,12 @@ mv src/content/exercises/smith-squat.yaml.bak src/content/exercises/smith-squat.
 sed -i.bak 's/zh: 史密斯机深蹲 }/zh: Smith }/' src/content/exercises/smith-squat.yaml
 npm run build 2>&1 | grep "zh text must contain Chinese characters"
 mv src/content/exercises/smith-squat.yaml.bak src/content/exercises/smith-squat.yaml
+sed -i.bak '/^  benchFitsInsideRack: true$/d' src/content/equipment/smith-functional-trainer.yaml
+npm run build 2>&1 | grep -A1 "CatalogError"
+mv src/content/equipment/smith-functional-trainer.yaml.bak src/content/equipment/smith-functional-trainer.yaml
 git status --short src/content
 ```
-Expected: the first build fails with `CatalogError: Content catalog has 1 problem(s):` / `- exercise "smith-squat": unknown alternative "goblet-squat"`; the second fails with `name.zh: zh text must contain Chinese characters`; `git status` lists only the new, untracked content files (the exercise file is back to the version above).
+Expected: the first build fails with `CatalogError: Content catalog has 1 problem(s):` / `- exercise "smith-squat": unknown alternative "goblet-squat"`; the second fails with `name.zh: zh text must contain Chinese characters`; the third fails with `- equipment "smith-functional-trainer": parameter "benchFitsInsideRack" is read by the geometry checks and needs an illustrative default`; `git status` lists only the new, untracked content files (both edited files are back to the versions above).
 
 - [ ] **Step 9: Run the checks**
 
@@ -1897,14 +1928,14 @@ gh pr create --repo tomqwu/ai_health --title "Content collections, generic seed 
 ```
 When CI is green: `gh pr merge --squash --delete-branch && git checkout main && git pull`.
 
-**Done when:** `npm run build` passes with the seed content and fails on a broken reference or a missing translation.
+**Done when:** `npm run build` passes with the seed content and fails on a broken reference, a missing translation or a missing typical value for a geometry parameter.
 
 ---
 ### Task 6: Profile schema, migrations and JSON import/export
 
 The browser-only profile of spec §6: its schema (strict, so nothing beyond the listed fields can be stored), a migration runner, validation that turns Zod issues into localizable field errors, and JSON export/import.
 
-Plan decision (open question 1): equipment parameter values use `ParamValue` from Task 1, because `holes`, `holes-range`, `stack`, `weights` and `enum` values do not fit the spec's `number | boolean | string[]`.
+Owner decision 1: equipment parameter values use `ParamValue` from Task 1, because `stack`, `weights` and `enum` values do not fit the spec's `number | boolean | string[]`. Per D12 every value in the profile is optional (stature, ceiling, limitations and each equipment parameter); stored parameters override the equipment's typical dimensions, and nothing prompts for them.
 
 **Files:**
 - Create: `src/lib/profile/schema.ts`, `src/lib/profile/migrate.ts`, `src/lib/profile/parse.ts`, `src/lib/profile/transfer.ts`
@@ -1934,7 +1965,7 @@ import { defaultProfile, ProfileSchema } from './schema';
 const valid = () => ({
   ...defaultProfile('en'),
   statureCm: 172,
-  room: { ceilingHeightCm: 255, clearanceMarginCm: 10 },
+  room: { ceilingHeightCm: 243.84, clearanceMarginCm: 10 }, // a standard 8 ft ceiling
   equipment: [
     {
       id: 'smith-functional-trainer',
@@ -2027,7 +2058,7 @@ import { exportFileName, exportProfile, importProfile } from './transfer';
 const synthetic = (): Profile => ({
   ...defaultProfile('zh'),
   statureCm: 168,
-  room: { ceilingHeightCm: 262, clearanceMarginCm: 10 },
+  room: { ceilingHeightCm: 243.84, clearanceMarginCm: 10 }, // a standard 8 ft ceiling
   equipment: [{ id: 'dumbbells', params: { dumbbellLoads: { unit: 'kg', loads: [2, 4, 6, 8, 10] } } }],
 });
 
@@ -2129,7 +2160,7 @@ export const ProfileSchema = z.strictObject({
 });
 export type Profile = z.output<typeof ProfileSchema>;
 
-/** A fresh profile: nothing owned or measured yet, metric display. */
+/** A fresh profile: nothing owned or entered yet (the engine then uses typical values, D12), metric display. */
 export function defaultProfile(locale: Locale): Profile {
   return {
     version: PROFILE_VERSION,
@@ -2288,7 +2319,7 @@ When CI is green: `gh pr merge --squash --delete-branch && git checkout main && 
 
 The only code that touches browser storage (spec §4.2). It keeps a corrupt profile under a timestamped backup key and falls back to memory when `localStorage` is missing or throws (spec §11).
 
-Plan decision (open question 16): on a failed read the raw text is copied to `aih.profile.backup.<timestamp>` and `aih.profile` is removed, so the site starts clean and the backup is kept once.
+Owner decision 16: on a failed read the raw text is copied to `aih.profile.backup.<timestamp>` and `aih.profile` is removed, so the site starts clean and the backup is kept once.
 
 **Files:**
 - Create: `src/lib/profile/storage.ts`, `src/lib/profile/index.ts`
@@ -2312,7 +2343,7 @@ import { defaultProfile, type Profile } from './schema';
 import { BACKUP_PREFIX, browserStorage, MemoryStorage, openProfileStore, PROFILE_KEY, ProfileStore } from './storage';
 
 const NOW = 1_790_000_000_000;
-const synthetic = (): Profile => ({ ...defaultProfile('en'), statureCm: 181, room: { ceilingHeightCm: 270, clearanceMarginCm: 10 } });
+const synthetic = (): Profile => ({ ...defaultProfile('en'), statureCm: 181, room: { ceilingHeightCm: 243.84, clearanceMarginCm: 10 } }); // 8 ft ceiling
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -2530,7 +2561,7 @@ export { exportFileName, exportProfile, importProfile } from './transfer';
 
 - [ ] **Step 5: Confirm nothing else touches storage**
 
-Run: `grep -rn "localStorage" src --include=*.ts --include=*.tsx --include=*.astro | grep -v "^src/lib/profile/"`
+Run: `grep -rn "localStorage" src --include='*.ts' --include='*.tsx' --include='*.astro' | grep -v "^src/lib/profile/"`
 Expected: no output.
 
 - [ ] **Step 6: Run the tests and the checks**
@@ -2553,25 +2584,25 @@ When CI is green: `gh pr merge --squash --delete-branch && git checkout main && 
 
 ---
 
-### Task 8: Engine geometry checks
+### Task 8: Engine geometry checks with typical defaults
 
-Spec §7.1 check 4 with the tri-state rules for unknown inputs. Poses come from **probes**, functions that pose an exercise's frames at a stature and report its envelope, Smith-bar heights and ROM overruns. Task 9 adds the real Smith-squat probe; this task tests the rules with fixed synthetic probes.
+Spec §7.1 check 4 with the D12 rules for unknown inputs: an unknown stature poses at a typical 175 cm, an unknown ceiling is assumed to be 240 cm (exceeding it adds a "check overhead clearance" note, never a failure), and an unmeasured equipment parameter uses the equipment's illustrative default. Poses come from **probes**, functions that pose an exercise's frames at a stature and report its envelope, Smith-bar heights, ROM findings and any other pose problem. Task 9 adds the real Smith-squat probe; this task tests the rules with fixed synthetic probes.
 
-Plan decisions (open questions 3, 7): exercises without a probe (everything except the Smith squat until M3) use a conservative stature-based envelope (standing = stature; `vertical-push` = 1.33 × stature; with a pull-up bar = bar height + 0.13 × stature) and no ROM check. Exercises that move a Smith bar are never planned without a probe (`engine.reason.noGeometryModel`). Bench fit applies when an exercise uses a bench angle at a rack station (`smith`, `barbell`).
+Owner decisions 3 and 7: exercises without a probe (everything except the Smith squat until M3) use a conservative stature-based envelope (standing = stature; `vertical-push` = 1.33 × stature; with a pull-up bar = bar height + 0.13 × stature) and no ROM check. Exercises that move a Smith bar are never planned without a probe (`engine.reason.noGeometryModel`). Bench fit applies when an exercise uses a bench angle at a rack station (`smith`, `barbell`). A *measured* ceiling that is too low still fails the ceiling check.
 
-This task also adds the shared engine types, parameter lookup and the synthetic fixtures every later engine test uses. Every fixture value is invented (spec §13).
+This task also adds the shared engine types, parameter lookup and the synthetic fixtures every later engine test uses. Every fixture value is invented (spec §13); the tall-enough room is a standard 8 ft ceiling.
 
 **Files:**
 - Create: `src/lib/engine/types.ts`, `src/lib/engine/params.ts`, `src/lib/engine/geometry.ts`, `src/lib/engine/testing/fixtures.ts`
 - Test: `src/lib/engine/geometry.test.ts`
 
 **Interfaces:**
-- Consumes: Tasks 1–3 and 6 (`Catalog`, `Exercise`, `ParamDef`, `paramValueMatches`, `Profile`, `defaultProfile`, `RACK_STATIONS`, `Message`).
+- Consumes: Tasks 1–3 and 6 (`Catalog`, `Exercise`, `ParamValue`, `paramValueMatches`, `GEOMETRY_PARAMS`/`GeometryParam`, `RACK_STATIONS`, `Profile`, `defaultProfile`, `Message`).
 - Produces:
-  - `types.ts`: `FeasibilityStatus`, `CheckId`, `MissingInfo` (`stature` | `ceiling` | `param` with `equipmentId`, `equipmentName`, `param`, `label`, `how`), `Unlock` (`equipment` | `attachment` | `exclusion` | `measure`), `Reason = { check; message: Message; unlock? }`, `Feasibility = { status; reasons; missing }`, `missingKey(m)`.
-  - `params.ts`: `ParamLookup`, `findParam(profile, catalog, name)`, `measuredNumber(l)`, `measuredBool(l)`, `missingParam(l)`, `ownedCapabilities(profile, catalog)`, `providersOf(catalog, capabilities)`.
-  - `geometry.ts`: `ASSUMED_CEILING_CM = 210`, `OVERHEAD_REACH_RATIO = 1.33`, `HEAD_ABOVE_BAR_RATIO = 0.13`, `ProbeInput = { statureCm }`, `ProbeResult = { topCm; barTopsCm?; romExceeded }`, `GeometryProbe`, `ProbeRegistry` (keyed by `exercise.figure.spec`), `GeometryOutcome = { reasons; missing }`, `benchInRack(ex)`, `checkGeometry(ex, profile, catalog, probes)`.
-  - `testing/fixtures.ts`: `SYN_EQUIPMENT`, `SYN_ATTACHMENTS`, `syntheticExercise(over)`, `SYN_EXERCISES` (14 exercises), `SYN_TEMPLATE` (`syn-3day`: mon push, tue legs, wed cardio, thu full body, sun rest), `syntheticCatalog(over?)`, and profiles `fullHomeGym()`, `dumbbellsOnly()`, `unmeasured()`, `lowCeiling()`.
+  - `types.ts`: `FeasibilityStatus = 'feasible' | 'infeasible'`, `CheckId`, `Unlock` (`equipment` | `attachment` | `exclusion`), `Reason = { check; message: Message; unlock? }`, `Feasibility = { status; reasons; notes: Message[] }`.
+  - `params.ts`: `paramValue(profile, catalog, name: GeometryParam): ParamValue | undefined` (the user's valid measurement, else the illustrative default), `numberParam(…)`, `boolParam(…)`, `ownedCapabilities(profile, catalog)`, `providersOf(catalog, capabilities)`.
+  - `geometry.ts`: `TYPICAL_STATURE_CM = 175`, `ASSUMED_CEILING_CM = 240`, `OVERHEAD_REACH_RATIO = 1.33`, `HEAD_ABOVE_BAR_RATIO = 0.13`, `ProbeInput = { statureCm }`, `ProbeResult = { topCm; barTopsCm?; rom; posing }`, `GeometryProbe`, `ProbeRegistry` (keyed by `exercise.figure.spec`), `GeometryOutcome = { reasons; notes }`, `benchInRack(ex)`, `statureFor(profile)`, `assumptions(profile): Message[]`, `checkGeometry(ex, profile, catalog, probes)`.
+  - `testing/fixtures.ts`: `EIGHT_FT_CEILING_CM` (243.84), `SYN_EQUIPMENT`, `SYN_ATTACHMENTS`, `syntheticExercise(over)`, `SYN_EXERCISES` (14 exercises), `SYN_TEMPLATE` (`syn-3day`: mon push, tue legs, wed cardio, thu full body, sun rest), `syntheticCatalog(over?)`, and profiles `fullHomeGym()`, `dumbbellsOnly()`, `nothingMeasured()`, `lowCeiling()`.
 
 - [ ] **Step 1: Branch**
 
@@ -2583,26 +2614,22 @@ git checkout main && git pull && git checkout -b m2/<issue>-engine-geometry
 
 `src/lib/engine/types.ts`:
 ```ts
-import type { I18nText } from '../i18n/locales';
 import type { Message } from '../i18n/format';
 
-export type FeasibilityStatus = 'feasible' | 'infeasible' | 'needs-info';
+/**
+ * Spec §7.1 as amended by D12: every unknown input has a typical value, so an exercise either fits or it
+ * does not. (`needs-info` is reserved for inputs that cannot be defaulted; v1 has none, so it is left out.)
+ */
+export type FeasibilityStatus = 'feasible' | 'infeasible';
 
-/** Spec §7.1 checks, in order. `pose` = the figure could not be solved at this stature. */
+/** Spec §7.1 checks, in order. `pose` = the figure could not be posed at this stature. */
 export type CheckId = 'capabilities' | 'attachments' | 'exclusions' | 'ceiling' | 'bar-travel' | 'bench-fit' | 'rom' | 'pose';
-
-/** Something the user can measure to turn `needs-info` into an answer. */
-export type MissingInfo =
-  | { kind: 'stature' }
-  | { kind: 'ceiling' }
-  | { kind: 'param'; equipmentId: string; equipmentName: I18nText; param: string; label: I18nText; how: I18nText };
 
 /** What would make a failing check pass. */
 export type Unlock =
   | { kind: 'equipment'; equipmentIds: readonly string[] }
   | { kind: 'attachment'; attachmentId: string }
-  | { kind: 'exclusion'; exerciseId: string }
-  | { kind: 'measure'; missing: MissingInfo };
+  | { kind: 'exclusion'; exerciseId: string };
 
 export interface Reason {
   check: CheckId;
@@ -2610,62 +2637,50 @@ export interface Reason {
   unlock?: Unlock;
 }
 
-/** `checkFeasibility` result (spec §7.1). `reasons` explain failures; `missing` lists what to measure. */
+/**
+ * `checkFeasibility` result (spec §7.1). `reasons` explain failures. `notes` never block the exercise: they
+ * say what to check yourself, e.g. overhead clearance under an assumed ceiling (D12).
+ */
 export interface Feasibility {
   status: FeasibilityStatus;
   reasons: Reason[];
-  missing: MissingInfo[];
-}
-
-/** The same MissingInfo twice (e.g. stature from two checks) is listed once. */
-export function missingKey(m: MissingInfo): string {
-  return m.kind === 'param' ? `param:${m.equipmentId}:${m.param}` : m.kind;
+  notes: Message[];
 }
 ```
 
 `src/lib/engine/params.ts`:
 ```ts
 import type { Catalog } from '../content/catalog';
-import { type ParamDef, type ParamValue, paramValueMatches } from '../content/params';
-import type { I18nText } from '../i18n/locales';
+import { type ParamValue, paramValueMatches } from '../content/params';
+import type { GeometryParam } from '../content/vocab';
 import type { Profile } from '../profile/schema';
-import type { MissingInfo } from './types';
-
-export interface ParamLookup {
-  equipmentId: string;
-  equipmentName: I18nText;
-  name: string;
-  def: ParamDef;
-  /** The user's measurement; undefined when not measured yet (or stored with the wrong shape). */
-  value?: ParamValue;
-}
 
 /**
- * The owned equipment that defines parameter `name`, with the user's value. Undefined when no owned
- * equipment has that parameter. Illustrative defaults are never consulted (spec §5.1).
+ * The value the geometry checks use for parameter `name` (D12): the user's own measurement when it is stored
+ * with the right shape, otherwise the illustrative default of the owned equipment that defines the
+ * parameter. Undefined only when no owned equipment defines it (buildCatalog guarantees a default for
+ * every geometry parameter an equipment defines).
  */
-export function findParam(profile: Profile, catalog: Catalog, name: string): ParamLookup | undefined {
+export function paramValue(profile: Profile, catalog: Catalog, name: GeometryParam): ParamValue | undefined {
   for (const owned of profile.equipment) {
     const eq = catalog.equipment.get(owned.id);
     const def = eq?.parameters[name];
     if (!eq || !def) continue;
-    const raw = owned.params[name];
-    const value = raw !== undefined && paramValueMatches(def, raw) ? raw : undefined;
-    return value === undefined
-      ? { equipmentId: eq.id, equipmentName: eq.name, name, def }
-      : { equipmentId: eq.id, equipmentName: eq.name, name, def, value };
+    const measured = owned.params[name];
+    if (measured !== undefined && paramValueMatches(def, measured)) return measured;
+    return eq.illustrativeDefaults[name];
   }
   return undefined;
 }
 
-export const measuredNumber = (l: ParamLookup | undefined): number | undefined =>
-  typeof l?.value === 'number' ? l.value : undefined;
+export function numberParam(profile: Profile, catalog: Catalog, name: GeometryParam): number | undefined {
+  const v = paramValue(profile, catalog, name);
+  return typeof v === 'number' ? v : undefined;
+}
 
-export const measuredBool = (l: ParamLookup | undefined): boolean | undefined =>
-  typeof l?.value === 'boolean' ? l.value : undefined;
-
-export function missingParam(l: ParamLookup): MissingInfo {
-  return { kind: 'param', equipmentId: l.equipmentId, equipmentName: l.equipmentName, param: l.name, label: l.def.label, how: l.def.how };
+export function boolParam(profile: Profile, catalog: Catalog, name: GeometryParam): boolean | undefined {
+  const v = paramValue(profile, catalog, name);
+  return typeof v === 'boolean' ? v : undefined;
 }
 
 /** Capabilities provided by the owned equipment that exists in the catalog. */
@@ -2689,6 +2704,9 @@ import type { Catalog } from '../../content/catalog';
 import { AttachmentSchema, type Equipment, EquipmentSchema, type Exercise, ExerciseSchema, type Template, TemplateSchema } from '../../content/schemas';
 import { defaultProfile, type Profile } from '../../profile/schema';
 
+/** A standard 8 ft ceiling (243.84 cm): the tall-enough room in these tests. */
+export const EIGHT_FT_CEILING_CM = 8 * 30.48;
+
 const T = (en: string) => ({ en, zh: `中文${en}` });
 const text = (label: string) => ({ label: T(label), how: T(`How to measure: ${label}`) });
 
@@ -2705,7 +2723,8 @@ export const SYN_EQUIPMENT: Equipment[] = [
       benchFitsInsideRack: { type: 'bool', ...text('Bench fits') },
       cableStack: { type: 'stack', ...text('Stack') },
     },
-    illustrativeDefaults: { smithLowestBarHeightCm: 40, smithHighestBarHeightCm: 180 },
+    // Typical dimensions, used whenever the profile has no measurement (D12).
+    illustrativeDefaults: { smithLowestBarHeightCm: 40, smithHighestBarHeightCm: 180, pullUpBarHeightCm: 210, benchFitsInsideRack: true },
   }),
   EquipmentSchema.parse({ id: 'adjustable-bench', kind: 'bench', name: T('Adjustable bench'), capabilities: ['flat-bench', 'incline-bench'] }),
   EquipmentSchema.parse({
@@ -2817,22 +2836,16 @@ export function syntheticCatalog(over: Partial<{ exercises: Exercise[]; equipmen
   };
 }
 
-/** Everything owned and measured; a tall-enough room. */
+/** Everything owned; height and an 8 ft ceiling entered; two stops measured, the rest typical (D12). */
 export function fullHomeGym(): Profile {
   return {
     ...defaultProfile('en'),
-    statureCm: 178,
-    room: { ceilingHeightCm: 265, clearanceMarginCm: 10 },
+    statureCm: 172,
+    room: { ceilingHeightCm: EIGHT_FT_CEILING_CM, clearanceMarginCm: 10 },
     equipment: [
       {
         id: 'smith-functional-trainer',
-        params: {
-          smithLowestBarHeightCm: 45,
-          smithHighestBarHeightCm: 185,
-          pullUpBarHeightCm: 215,
-          benchFitsInsideRack: true,
-          cableStack: { first: 5, last: 80, step: 5, unit: 'kg' },
-        },
+        params: { smithLowestBarHeightCm: 45, smithHighestBarHeightCm: 185, cableStack: { first: 5, last: 80, step: 5, unit: 'kg' } },
       },
       { id: 'adjustable-bench', params: {} },
       { id: 'dumbbells', params: { dumbbellLoads: { unit: 'kg', loads: [2, 4, 6, 8, 10, 12.5, 15] } } },
@@ -2842,12 +2855,12 @@ export function fullHomeGym(): Profile {
   };
 }
 
-/** Dumbbells and a bench only. */
+/** Dumbbells and a bench only; no ceiling entered. */
 export function dumbbellsOnly(): Profile {
   return {
     ...fullHomeGym(),
     statureCm: 165,
-    room: { ceilingHeightCm: 240, clearanceMarginCm: 10 },
+    room: { clearanceMarginCm: 10 },
     equipment: [
       { id: 'adjustable-bench', params: {} },
       { id: 'dumbbells', params: { dumbbellLoads: { unit: 'lb', loads: [5, 15, 25] } } },
@@ -2856,8 +2869,8 @@ export function dumbbellsOnly(): Profile {
   };
 }
 
-/** Everything owned, nothing measured: no stature, no ceiling, no equipment parameters. */
-export function unmeasured(): Profile {
+/** Everything owned, nothing entered: no height, no ceiling, no equipment values (D12: all typical). */
+export function nothingMeasured(): Profile {
   const p = fullHomeGym();
   return { ...p, statureCm: undefined, room: { clearanceMarginCm: 10 }, equipment: p.equipment.map((e) => ({ id: e.id, params: {} })) };
 }
@@ -2874,17 +2887,19 @@ export function lowCeiling(): Profile {
 ```ts
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../profile/schema';
-import { checkGeometry, type GeometryProbe, type ProbeRegistry } from './geometry';
-import { fullHomeGym, lowCeiling, syntheticCatalog, unmeasured } from './testing/fixtures';
+import { ASSUMED_CEILING_CM, assumptions, checkGeometry, type GeometryProbe, type ProbeRegistry, TYPICAL_STATURE_CM } from './geometry';
+import { EIGHT_FT_CEILING_CM, fullHomeGym, lowCeiling, nothingMeasured, SYN_EQUIPMENT, syntheticCatalog } from './testing/fixtures';
 
 const catalog = syntheticCatalog();
 const ex = (id: string) => catalog.exercises.get(id)!;
+const PASS = { reasons: [], notes: [] };
 
 /** A fixed pose result, independent of the pose layer. */
 const fixed = (over: Partial<ReturnType<GeometryProbe>> = {}): GeometryProbe => () => ({
   topCm: 180,
   barTopsCm: [90, 150],
-  romExceeded: [],
+  rom: [],
+  posing: [],
   ...over,
 });
 const smithProbes = (probe: GeometryProbe = fixed()): ProbeRegistry => ({ 'smith-squat': probe, 'smith-bench-press': probe });
@@ -2893,26 +2908,30 @@ const withParams = (p: Profile, params: Record<string, unknown>): Profile => ({
   ...p,
   equipment: p.equipment.map((e) => (e.id === 'smith-functional-trainer' ? { ...e, params: { ...e.params, ...params } as typeof e.params } : e)),
 });
-const without = (p: Profile, name: string): Profile => ({
-  ...p,
-  equipment: p.equipment.map((e) => {
-    const params = { ...e.params };
-    delete params[name];
-    return { ...e, params };
-  }),
-});
+const noCeiling = (p: Profile): Profile => ({ ...p, room: { clearanceMarginCm: 10 } });
 const checks = (o: ReturnType<typeof checkGeometry>) => o.reasons.map((r) => r.check);
-const missingParams = (o: ReturnType<typeof checkGeometry>) => o.missing.map((m) => (m.kind === 'param' ? m.param : m.kind));
 
 describe('checkGeometry', () => {
-  it('passes a measured profile', () => {
-    expect(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes())).toEqual({ reasons: [], missing: [] });
+  it('passes a profile with height and ceiling entered', () => {
+    expect(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes())).toEqual(PASS);
   });
 
-  describe('unknown stature', () => {
-    it('makes every geometry check needs-info', () => {
-      expect(checkGeometry(ex('smith-squat'), unmeasured(), catalog, smithProbes())).toEqual({ reasons: [], missing: [{ kind: 'stature' }] });
-      expect(checkGeometry(ex('goblet-squat'), unmeasured(), catalog, {})).toEqual({ reasons: [], missing: [{ kind: 'stature' }] });
+  describe('typical values (D12)', () => {
+    it('poses at a typical 175 cm when the height is unknown', () => {
+      const seen: number[] = [];
+      const probe: GeometryProbe = (input) => {
+        seen.push(input.statureCm);
+        return fixed()(input);
+      };
+      expect(checkGeometry(ex('smith-squat'), nothingMeasured(), catalog, smithProbes(probe))).toEqual(PASS);
+      expect(seen).toEqual([TYPICAL_STATURE_CM]);
+    });
+    it('says which typical values stand in for unknown inputs', () => {
+      expect(assumptions(fullHomeGym())).toEqual([]);
+      expect(assumptions(nothingMeasured())).toEqual([
+        { key: 'engine.assumed.stature', params: { height: { lengthCm: 175 } } },
+        { key: 'engine.assumed.ceiling', params: { ceiling: { lengthCm: 240 } } },
+      ]);
     });
   });
 
@@ -2921,49 +2940,68 @@ describe('checkGeometry', () => {
       const o = checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, {});
       expect(o.reasons).toEqual([{ check: 'bar-travel', message: { key: 'engine.reason.noGeometryModel' } }]);
     });
-    it('reports a probe that cannot pose the exercise', () => {
+    it('reports a probe that cannot pose the exercise cleanly', () => {
       const throwing: GeometryProbe = () => {
         throw new Error('no trunk angle');
       };
       expect(checks(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(throwing)))).toEqual(['pose']);
+      const offTarget = fixed({ posing: ['bottom: foot_l is 3.0 cm from its target'] });
+      expect(checks(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(offTarget)))).toEqual(['pose']);
     });
     it('reports joints past their range of motion', () => {
-      expect(checks(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(fixed({ romExceeded: ['knee_l'] }))))).toEqual(['rom']);
+      const rom = fixed({ rom: ['bottom: kneeFlex_l at 152° exceeds 150°'] });
+      expect(checks(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(rom)))).toEqual(['rom']);
     });
   });
 
   describe('ceiling', () => {
-    it('fails when the envelope plus margin exceeds a measured ceiling', () => {
-      const o = checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(fixed({ topCm: 258.2 })));
-      expect(o.reasons).toEqual([
-        {
-          check: 'ceiling',
-          message: { key: 'engine.reason.ceiling', params: { need: { lengthCm: 269 }, margin: { lengthCm: 10 }, ceiling: { lengthCm: 265 } } },
-        },
-      ]);
+    it('fails when the envelope plus margin exceeds an entered ceiling', () => {
+      expect(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(fixed({ topCm: 240.2 })))).toEqual({
+        reasons: [
+          {
+            check: 'ceiling',
+            message: { key: 'engine.reason.ceiling', params: { need: { lengthCm: 251 }, margin: { lengthCm: 10 }, ceiling: { lengthCm: EIGHT_FT_CEILING_CM } } },
+          },
+        ],
+        notes: [],
+      });
     });
-    it('assumes 210 cm when the ceiling is unmeasured', () => {
-      const p: Profile = { ...fullHomeGym(), room: { clearanceMarginCm: 10 } };
-      expect(checkGeometry(ex('smith-squat'), p, catalog, smithProbes(fixed({ topCm: 200 }))).missing).toEqual([]);
-      expect(checkGeometry(ex('smith-squat'), p, catalog, smithProbes(fixed({ topCm: 201 }))).missing).toEqual([{ kind: 'ceiling' }]);
+    it('assumes a 240 cm ceiling when none is entered, and notes clearance instead of failing', () => {
+      const p = noCeiling(fullHomeGym());
+      expect(checkGeometry(ex('smith-squat'), p, catalog, smithProbes(fixed({ topCm: 230 })))).toEqual(PASS);
+      expect(checkGeometry(ex('smith-squat'), p, catalog, smithProbes(fixed({ topCm: 230.5 })))).toEqual({
+        reasons: [],
+        notes: [
+          { key: 'engine.note.checkClearance', params: { need: { lengthCm: 241 }, margin: { lengthCm: 10 }, ceiling: { lengthCm: ASSUMED_CEILING_CM } } },
+        ],
+      });
     });
     it('uses overhead reach for vertical pushes without a probe', () => {
       // 1.33 × 188 + 10 = 260.04 > 225
       expect(checks(checkGeometry(ex('db-shoulder-press'), lowCeiling(), catalog, {}))).toEqual(['ceiling']);
-      // 1.33 × 178 + 10 = 246.74 ≤ 265
-      expect(checks(checkGeometry(ex('db-shoulder-press'), fullHomeGym(), catalog, {}))).toEqual([]);
+      // 1.33 × 172 + 10 = 238.76 ≤ 243.84
+      expect(checkGeometry(ex('db-shoulder-press'), fullHomeGym(), catalog, {})).toEqual(PASS);
+      // typical height: 1.33 × 175 + 10 = 242.75 → 243 > 240 assumed: a note, not a failure
+      const typical = checkGeometry(ex('db-shoulder-press'), nothingMeasured(), catalog, {});
+      expect(typical.reasons).toEqual([]);
+      expect(typical.notes.map((n) => n.key)).toEqual(['engine.note.checkClearance']);
       // standing: 188 + 10 ≤ 225
-      expect(checks(checkGeometry(ex('goblet-squat'), lowCeiling(), catalog, {}))).toEqual([]);
+      expect(checkGeometry(ex('goblet-squat'), lowCeiling(), catalog, {})).toEqual(PASS);
     });
-    it('uses the pull-up bar height for hanging exercises', () => {
-      // 215 + 0.13 × 178 + 10 = 248.14 ≤ 265
-      expect(checkGeometry(ex('pull-up'), fullHomeGym(), catalog, {})).toEqual({ reasons: [], missing: [] });
-      // 240 + 23.14 + 10 > 265
-      expect(checks(checkGeometry(ex('pull-up'), withParams(fullHomeGym(), { pullUpBarHeightCm: 240 }), catalog, {}))).toEqual(['ceiling']);
-      expect(missingParams(checkGeometry(ex('pull-up'), without(fullHomeGym(), 'pullUpBarHeightCm'), catalog, {}))).toEqual(['pullUpBarHeightCm']);
+    it('uses the pull-up bar height, measured or typical, for hanging exercises', () => {
+      // typical bar: 210 + 0.13 × 172 + 10 = 242.36 ≤ 243.84
+      expect(checkGeometry(ex('pull-up'), fullHomeGym(), catalog, {})).toEqual(PASS);
+      // measured bar: 230 + 22.36 + 10 > 243.84
+      expect(checks(checkGeometry(ex('pull-up'), withParams(fullHomeGym(), { pullUpBarHeightCm: 230 }), catalog, {}))).toEqual(['ceiling']);
+    });
+    it('falls back to overhead reach when no owned equipment defines a pull-up bar height', () => {
+      const bare = syntheticCatalog({ equipment: SYN_EQUIPMENT.map((e) => ({ ...e, parameters: {}, illustrativeDefaults: {} })) });
+      // 1.33 × 172 + 10 = 238.76 ≤ 243.84; the stored 230 cm is ignored because no equipment defines it
+      expect(checkGeometry(ex('pull-up'), withParams(fullHomeGym(), { pullUpBarHeightCm: 230 }), bare, {})).toEqual(PASS);
     });
     it('uses the profile clearance margin', () => {
-      const p: Profile = { ...fullHomeGym(), room: { ceilingHeightCm: 265, clearanceMarginCm: 30 } };
+      const p: Profile = { ...fullHomeGym(), room: { ceilingHeightCm: EIGHT_FT_CEILING_CM, clearanceMarginCm: 30 } };
+      // 1.33 × 172 + 30 = 258.76 > 243.84
       expect(checks(checkGeometry(ex('db-shoulder-press'), p, catalog, {}))).toEqual(['ceiling']);
     });
   });
@@ -2976,41 +3014,33 @@ describe('checkGeometry', () => {
         { check: 'bar-travel', message: { key: 'engine.reason.barAboveStop', params: { height: { lengthCm: 150 }, stop: { lengthCm: 140 } } } },
       ]);
     });
-    it('asks only for the stops that are unmeasured', () => {
-      const p = without(fullHomeGym(), 'smithLowestBarHeightCm');
-      const o = checkGeometry(ex('smith-squat'), p, catalog, smithProbes());
-      expect(o.reasons).toEqual([]);
-      expect(o.missing).toEqual([
-        {
-          kind: 'param',
-          equipmentId: 'smith-functional-trainer',
-          equipmentName: { en: 'Smith machine + functional trainer', zh: '中文Smith machine + functional trainer' },
-          param: 'smithLowestBarHeightCm',
-          label: { en: 'Lowest bar', zh: '中文Lowest bar' },
-          how: { en: 'How to measure: Lowest bar', zh: '中文How to measure: Lowest bar' },
-        },
+    it('uses the typical stops when none are measured', () => {
+      const o = checkGeometry(ex('smith-squat'), nothingMeasured(), catalog, smithProbes(fixed({ barTopsCm: [30, 185] })));
+      expect(o.reasons).toEqual([
+        { check: 'bar-travel', message: { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: 30 }, stop: { lengthCm: 40 } } } },
+        { check: 'bar-travel', message: { key: 'engine.reason.barAboveStop', params: { height: { lengthCm: 185 }, stop: { lengthCm: 180 } } } },
       ]);
     });
-    it('never uses illustrative defaults', () => {
-      const p = without(without(fullHomeGym(), 'smithLowestBarHeightCm'), 'smithHighestBarHeightCm');
-      expect(missingParams(checkGeometry(ex('smith-squat'), p, catalog, smithProbes()))).toEqual(['smithLowestBarHeightCm', 'smithHighestBarHeightCm']);
-    });
-    it('treats a value of the wrong type as unmeasured', () => {
-      const p = withParams(fullHomeGym(), { smithLowestBarHeightCm: 'low' });
-      expect(missingParams(checkGeometry(ex('smith-squat'), p, catalog, smithProbes()))).toEqual(['smithLowestBarHeightCm']);
+    it('prefers a measured stop, and treats a stored value of the wrong type as unmeasured', () => {
+      const probes = smithProbes(fixed({ barTopsCm: [42, 150] }));
+      // measured lowest stop 45 cm
+      expect(checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, probes).reasons.map((r) => r.message)).toEqual([
+        { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: 42 }, stop: { lengthCm: 45 } } },
+      ]);
+      // not a number: the typical 40 cm applies
+      expect(checkGeometry(ex('smith-squat'), withParams(fullHomeGym(), { smithLowestBarHeightCm: 'low' }), catalog, probes)).toEqual(PASS);
     });
   });
 
   describe('bench fit', () => {
-    it('passes, fails or asks depending on benchFitsInsideRack', () => {
+    it('uses the answer in the profile, else the typical one', () => {
       const run = (p: Profile) => checkGeometry(ex('smith-bench-press'), p, catalog, smithProbes());
-      expect(run(fullHomeGym())).toEqual({ reasons: [], missing: [] });
+      expect(run(fullHomeGym())).toEqual(PASS);
       expect(checks(run(withParams(fullHomeGym(), { benchFitsInsideRack: false })))).toEqual(['bench-fit']);
-      expect(missingParams(run(without(fullHomeGym(), 'benchFitsInsideRack')))).toEqual(['benchFitsInsideRack']);
     });
     it('does not apply to bench work outside the rack', () => {
       const p = withParams(fullHomeGym(), { benchFitsInsideRack: false });
-      expect(checkGeometry(ex('db-bench-press'), p, catalog, {})).toEqual({ reasons: [], missing: [] });
+      expect(checkGeometry(ex('db-bench-press'), p, catalog, {})).toEqual(PASS);
     });
   });
 });
@@ -3028,12 +3058,15 @@ Expected: FAIL — `Failed to resolve import "./geometry"`.
 import type { Catalog } from '../content/catalog';
 import type { Exercise } from '../content/schemas';
 import { type Pattern, RACK_STATIONS } from '../content/vocab';
+import type { Message } from '../i18n/format';
 import type { Profile } from '../profile/schema';
-import { findParam, measuredBool, measuredNumber, missingParam } from './params';
-import type { MissingInfo, Reason } from './types';
+import { boolParam, numberParam } from './params';
+import type { Reason } from './types';
 
-/** Spec §7.1: with no measured ceiling, assume this and ask for a measurement when it matters. */
-export const ASSUMED_CEILING_CM = 210;
+/** Spec §7.1 (D12): an unknown stature poses at this typical adult stature. */
+export const TYPICAL_STATURE_CM = 175;
+/** Spec §7.1 (D12): an unknown ceiling is assumed to be this high; exceeding it adds a note, never a failure. */
+export const ASSUMED_CEILING_CM = 240;
 
 /**
  * Interim envelope for exercises without a pose probe, until M3 poses every figure. Conservative
@@ -3055,8 +3088,10 @@ export interface ProbeResult {
   topCm: number;
   /** Top of the Smith bar in each frame (cm), for exercises that move a Smith bar. */
   barTopsCm?: readonly number[];
-  /** Joints past their range-of-motion limit in any frame (e.g. "knee_l"); empty when within limits. */
-  romExceeded: readonly string[];
+  /** Range-of-motion findings in any frame (pose-layer diagnostics); empty when every joint is within its limits. */
+  rom: readonly string[];
+  /** Other pose-layer findings (hands or feet off target, bar off the rail, bone lengths); empty when posed cleanly. */
+  posing: readonly string[];
 }
 
 /** Poses an exercise's frames; may throw when no valid pose exists. */
@@ -3067,33 +3102,43 @@ export type ProbeRegistry = Readonly<Record<string, GeometryProbe>>;
 
 export interface GeometryOutcome {
   reasons: Reason[];
-  missing: MissingInfo[];
+  /** Non-blocking: e.g. check overhead clearance under an assumed ceiling. */
+  notes: Message[];
 }
 
 /** The bench sits between the uprights when the exercise uses a bench at a rack station. */
 export const benchInRack = (ex: Exercise) => ex.setupState.benchAngleDeg !== undefined && RACK_STATIONS.includes(ex.setupState.station);
 
-function envelopeTop(ex: Exercise, statureCm: number, profile: Profile, catalog: Catalog): { topCm: number } | { missing: MissingInfo } {
+/** The stature every check uses: the profile's, else the typical one (D12). */
+export const statureFor = (profile: Profile): number => profile.statureCm ?? TYPICAL_STATURE_CM;
+
+/** Which typical values stand in for unknown inputs, as messages (spec §7.1: checks say "typical height"). */
+export function assumptions(profile: Profile): Message[] {
+  const out: Message[] = [];
+  if (profile.statureCm === undefined) out.push({ key: 'engine.assumed.stature', params: { height: { lengthCm: TYPICAL_STATURE_CM } } });
+  if (profile.room.ceilingHeightCm === undefined) out.push({ key: 'engine.assumed.ceiling', params: { ceiling: { lengthCm: ASSUMED_CEILING_CM } } });
+  return out;
+}
+
+function envelopeTopCm(ex: Exercise, statureCm: number, profile: Profile, catalog: Catalog): number {
   if (ex.requires.capabilities.includes('pull-up-bar')) {
-    const l = findParam(profile, catalog, 'pullUpBarHeightCm');
-    const bar = measuredNumber(l);
-    if (bar !== undefined) return { topCm: bar + HEAD_ABOVE_BAR_RATIO * statureCm };
-    if (l) return { missing: missingParam(l) };
-    return { topCm: OVERHEAD_REACH_RATIO * statureCm };
+    const bar = numberParam(profile, catalog, 'pullUpBarHeightCm');
+    return bar === undefined ? OVERHEAD_REACH_RATIO * statureCm : bar + HEAD_ABOVE_BAR_RATIO * statureCm;
   }
-  if (OVERHEAD_PATTERNS.includes(ex.pattern)) return { topCm: OVERHEAD_REACH_RATIO * statureCm };
-  return { topCm: statureCm };
+  if (OVERHEAD_PATTERNS.includes(ex.pattern)) return OVERHEAD_REACH_RATIO * statureCm;
+  return statureCm;
 }
 
 /**
- * Spec §7.1 check 4: ceiling clearance, Smith bar travel, bench fit and joint range of motion.
- * Unknown inputs never pass silently: they become `missing` entries (needs-info).
+ * Spec §7.1 check 4: ceiling clearance, Smith bar travel, bench fit and joint range of motion. Unknown
+ * inputs use typical values (D12): stature 175 cm, the equipment's illustrative defaults, and an assumed
+ * 240 cm ceiling that adds a clearance note instead of failing.
  */
 export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, probes: ProbeRegistry): GeometryOutcome {
   const reasons: Reason[] = [];
-  const missing: MissingInfo[] = [];
-  const statureCm = profile.statureCm;
-  if (statureCm === undefined) return { reasons, missing: [{ kind: 'stature' }] };
+  const notes: Message[] = [];
+  const statureCm = statureFor(profile);
+  const poseFailed: GeometryOutcome = { reasons: [{ check: 'pose', message: { key: 'engine.reason.poseFailed' } }], notes };
 
   const movesSmithBar = ex.requires.capabilities.includes('smith-bar');
   const probe = ex.figure ? probes[ex.figure.spec] : undefined;
@@ -3102,40 +3147,35 @@ export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, 
     try {
       probed = probe({ statureCm });
     } catch {
-      return { reasons: [{ check: 'pose', message: { key: 'engine.reason.poseFailed' } }], missing };
+      return poseFailed;
     }
+    if (probed.posing.length > 0) return poseFailed;
   }
   if (movesSmithBar && !probed?.barTopsCm?.length) {
-    return { reasons: [{ check: 'bar-travel', message: { key: 'engine.reason.noGeometryModel' } }], missing };
+    return { reasons: [{ check: 'bar-travel', message: { key: 'engine.reason.noGeometryModel' } }], notes };
   }
 
   // Ceiling: head, hands and implements plus the margin.
-  const top = probed ? { topCm: probed.topCm } : envelopeTop(ex, statureCm, profile, catalog);
-  if ('missing' in top) missing.push(top.missing);
-  else {
-    const margin = profile.room.clearanceMarginCm;
-    const needCm = Math.ceil(top.topCm + margin);
-    const ceiling = profile.room.ceilingHeightCm;
-    if (ceiling === undefined) {
-      if (needCm > ASSUMED_CEILING_CM) missing.push({ kind: 'ceiling' });
-    } else if (needCm > ceiling) {
-      reasons.push({
-        check: 'ceiling',
-        message: { key: 'engine.reason.ceiling', params: { need: { lengthCm: needCm }, margin: { lengthCm: margin }, ceiling: { lengthCm: ceiling } } },
-      });
+  const margin = profile.room.clearanceMarginCm;
+  const needCm = Math.ceil((probed ? probed.topCm : envelopeTopCm(ex, statureCm, profile, catalog)) + margin);
+  const ceiling = profile.room.ceilingHeightCm;
+  if (ceiling === undefined) {
+    if (needCm > ASSUMED_CEILING_CM) {
+      notes.push({ key: 'engine.note.checkClearance', params: { need: { lengthCm: needCm }, margin: { lengthCm: margin }, ceiling: { lengthCm: ASSUMED_CEILING_CM } } });
     }
+  } else if (needCm > ceiling) {
+    reasons.push({
+      check: 'ceiling',
+      message: { key: 'engine.reason.ceiling', params: { need: { lengthCm: needCm }, margin: { lengthCm: margin }, ceiling: { lengthCm: ceiling } } },
+    });
   }
 
-  // Smith bar travel versus the measured stops.
+  // Smith bar travel versus the stops (measured, else typical).
   if (movesSmithBar && probed?.barTopsCm) {
     const low = Math.min(...probed.barTopsCm);
     const high = Math.max(...probed.barTopsCm);
-    const lowest = findParam(profile, catalog, 'smithLowestBarHeightCm');
-    const highest = findParam(profile, catalog, 'smithHighestBarHeightCm');
-    const lowestCm = measuredNumber(lowest);
-    const highestCm = measuredNumber(highest);
-    if (lowest && lowestCm === undefined) missing.push(missingParam(lowest));
-    if (highest && highestCm === undefined) missing.push(missingParam(highest));
+    const lowestCm = numberParam(profile, catalog, 'smithLowestBarHeightCm');
+    const highestCm = numberParam(profile, catalog, 'smithHighestBarHeightCm');
     if (lowestCm !== undefined && low < lowestCm) {
       reasons.push({
         check: 'bar-travel',
@@ -3150,52 +3190,49 @@ export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, 
     }
   }
 
-  // Bench between the uprights.
-  if (benchInRack(ex)) {
-    const fits = findParam(profile, catalog, 'benchFitsInsideRack');
-    const value = measuredBool(fits);
-    if (fits && value === undefined) missing.push(missingParam(fits));
-    if (value === false) reasons.push({ check: 'bench-fit', message: { key: 'engine.reason.benchFit' } });
+  // Bench between the uprights (the user's answer, else the typical one).
+  if (benchInRack(ex) && boolParam(profile, catalog, 'benchFitsInsideRack') === false) {
+    reasons.push({ check: 'bench-fit', message: { key: 'engine.reason.benchFit' } });
   }
 
   // Joint range of motion at this stature.
-  if (probed && probed.romExceeded.length > 0) reasons.push({ check: 'rom', message: { key: 'engine.reason.rom' } });
+  if (probed && probed.rom.length > 0) reasons.push({ check: 'rom', message: { key: 'engine.reason.rom' } });
 
-  return { reasons, missing };
+  return { reasons, notes };
 }
 ```
 
 - [ ] **Step 6: Run the tests and the checks**
 
 Run: `npx vitest run src/lib/engine && npm run lint && npm run check`
-Expected: `geometry.test.ts` 16 passed; 0 lint and type errors.
+Expected: `geometry.test.ts` 17 passed; 0 lint and type errors.
 
 - [ ] **Step 7: Commit, open the PR, merge when CI is green**
 
 ```bash
 git add src/lib/engine
-git commit -m $'feat(engine): add geometry checks with tri-state rules and synthetic fixtures\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
+git commit -m $'feat(engine): add geometry checks with typical defaults and synthetic fixtures\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
 git push -u origin HEAD
-gh pr create --repo tomqwu/ai_health --title "Engine geometry checks" \
-  --body $'Ceiling, Smith bar travel, bench fit and ROM checks; unknown inputs become needs-info; synthetic fixtures for engine tests.\n\nCloses #<issue>\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'
+gh pr create --repo tomqwu/ai_health --title "Engine geometry checks with typical defaults" \
+  --body $'Ceiling, Smith bar travel, bench fit and ROM checks. Unknown inputs use typical values (D12): 175 cm stature, illustrative equipment defaults, and an assumed 240 cm ceiling that adds a clearance note. Synthetic fixtures for engine tests.\n\nCloses #<issue>\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'
 ```
 When CI is green: `gh pr merge --squash --delete-branch && git checkout main && git pull`.
 
-**Done when:** each geometry check passes, fails and asks for information in the cases spec §7.1 describes.
+**Done when:** each geometry check passes and fails as spec §7.1 describes, every unknown input falls back to its typical value (D12), and an assumed ceiling only ever adds a note.
 
 ---
 
 ### Task 9: Smith squat geometry probe
 
-Connects the engine to the M1 pose layer: the Smith squat's three frames are solved at the profile's stature on the committed skeleton, and the probe reports the head/plate envelope, the bar-top heights and any joint past `ROM_LIMITS`.
+Connects the engine to the pose layer as merged in #45. For each Smith-squat frame the probe calls `checkFigureFrame(sk, spec, frame, { statureCm, smith: ILLUSTRATIVE_SMITH })`, the helper that solves and validates a frame from one set of inputs, so the solver's rail and the validator's machine cannot disagree. The figure is posed on the typical machine (D12); only the rail position affects the pose. The probe reports the head/plate envelope and the bar-top heights, passes the validator's signed ROM findings through (including the documented magnitude-only elbow exception for the Smith squat), and reports its anchor, feet-flat, bar-on-rail and bone-length findings as pose problems. Bar travel and ceiling are left to the engine, which checks them against the profile's or the typical values with localized messages.
 
 **Files:**
 - Create: `src/lib/engine/probes.ts`
 - Test: `src/lib/engine/probes.test.ts`
 
 **Interfaces:**
-- Consumes: M1 `solveSmithSquat`, `SmithSquatSpec`, `carriedBarCenter`, `headTop`, `jointAngles`, `ROM_LIMITS`, `REAL_SKELETON`, `syntheticSkeleton`, `SMITH_SQUAT`, `ILLUSTRATIVE_SMITH.barRadiusCm`; Task 8 `GeometryProbe`, `ProbeRegistry`, `checkGeometry`, fixtures.
-- Produces: `PLATE_DIAMETER_CM = 45`, `smithSquatProbe(sk, spec): GeometryProbe`, `DEFAULT_PROBES: ProbeRegistry` (`{ 'smith-squat': … }`).
+- Consumes: pose layer (#45) `checkFigureFrame(sk, spec, frame, ctx): { solution, findings }`, `Finding`, `carriedBarCenter(sk, sol, barRestOffsetCm)`, `headTop(sk, world, scaleFactor)`, `REAL_SKELETON`, `syntheticSkeleton`, `SkeletonDef`, `SmithSquatSpec`, `SMITH_SQUAT`, `ILLUSTRATIVE_SMITH` (`barRadiusCm`, `plateDiameterCm`); Task 8 `GeometryProbe`, `ProbeRegistry`, `checkGeometry`, fixtures.
+- Produces: `smithSquatProbe(sk, spec): GeometryProbe`, `DEFAULT_PROBES: ProbeRegistry` (`{ 'smith-squat': … }`).
 
 - [ ] **Step 1: Branch**
 
@@ -3212,17 +3249,18 @@ import { syntheticSkeleton } from '../figure/pose/synthetic';
 import type { Profile } from '../profile/schema';
 import { checkGeometry } from './geometry';
 import { DEFAULT_PROBES, smithSquatProbe } from './probes';
-import { fullHomeGym, syntheticCatalog } from './testing/fixtures';
+import { fullHomeGym, nothingMeasured, syntheticCatalog } from './testing/fixtures';
 
 const STATURES = [150, 165, 175, 190, 200];
 
 describe('smithSquatProbe', () => {
-  const probes = { real: DEFAULT_PROBES['smith-squat']!, synthetic: smithSquatProbe(syntheticSkeleton(), SMITH_SQUAT) };
+  const probes = { real: DEFAULT_PROBES['smith-squat']!, synthetic: smithSquatProbe(syntheticSkeleton({ randomRestSeed: 5 }), SMITH_SQUAT) };
 
   for (const [skeleton, probe] of Object.entries(probes)) {
-    it.each(STATURES)(`${skeleton} skeleton: poses all three frames within ROM at %i cm`, (statureCm) => {
+    it.each(STATURES)(`${skeleton} skeleton: poses all three frames cleanly at %i cm`, (statureCm) => {
       const r = probe({ statureCm });
-      expect(r.romExceeded).toEqual([]);
+      expect(r.rom).toEqual([]);
+      expect(r.posing).toEqual([]);
       expect(r.barTopsCm).toHaveLength(3);
       // The head is the highest point; plates never rise above it in a back squat.
       expect(r.topCm).toBeGreaterThan(statureCm * 0.95);
@@ -3237,6 +3275,18 @@ describe('smithSquatProbe', () => {
     expect(tall[0]!).toBeGreaterThan(short[0]!);
     expect(tall[1]!).toBeGreaterThan(short[1]!);
   });
+
+  it('passes the pose layer ROM findings through, per frame', () => {
+    const narrow = { ...SMITH_SQUAT, grip: { ...SMITH_SQUAT.grip, halfWidthCm: 20 } };
+    const r = smithSquatProbe(syntheticSkeleton(), narrow)({ statureCm: 190 });
+    expect(r.rom.some((m) => m.startsWith('unrack: elbowFlex_'))).toBe(true);
+    expect(r.posing).toEqual([]);
+  });
+
+  it('throws when a frame cannot be solved', () => {
+    const far = { ...SMITH_SQUAT, stance: { ...SMITH_SQUAT.stance, forwardOfRailCm: 150 } };
+    expect(() => smithSquatProbe(syntheticSkeleton(), far)({ statureCm: 175 })).toThrow(/no trunk angle/);
+  });
 });
 
 describe('checkGeometry with the default probes', () => {
@@ -3247,8 +3297,11 @@ describe('checkGeometry with the default probes', () => {
     return { ...p, equipment: p.equipment.map((e) => (e.id === 'smith-functional-trainer' ? { ...e, params: { ...e.params, smithLowestBarHeightCm: cm } } : e)) };
   };
 
-  it('passes the Smith squat on a measured synthetic setup', () => {
-    expect(checkGeometry(squat, fullHomeGym(), catalog, DEFAULT_PROBES)).toEqual({ reasons: [], missing: [] });
+  it('passes the Smith squat for a synthetic user with height and ceiling entered', () => {
+    expect(checkGeometry(squat, fullHomeGym(), catalog, DEFAULT_PROBES)).toEqual({ reasons: [], notes: [] });
+  });
+  it('passes it at a typical height on the typical machine (D12)', () => {
+    expect(checkGeometry(squat, nothingMeasured(), catalog, DEFAULT_PROBES)).toEqual({ reasons: [], notes: [] });
   });
   it('fails it when the lowest stop is above the bottom of the squat', () => {
     const o = checkGeometry(squat, withLowest(130), catalog, DEFAULT_PROBES);
@@ -3267,41 +3320,43 @@ Expected: FAIL — `Failed to resolve import "./probes"`.
 ```ts
 import { SMITH_SQUAT } from '../figure/fixtures/smith-squat';
 import { ILLUSTRATIVE_SMITH } from '../figure/geometry/smith';
+import { checkFigureFrame } from '../figure/pose/checkFigureFrame';
 import { REAL_SKELETON } from '../figure/pose/realSkeleton';
 import type { SkeletonDef } from '../figure/pose/skeleton';
-import { type SmithSquatSpec, solveSmithSquat } from '../figure/pose/smithSquat';
-import { carriedBarCenter, headTop, jointAngles, ROM_LIMITS } from '../figure/pose/validate';
+import type { SmithSquatSpec } from '../figure/pose/smithSquat';
+import { carriedBarCenter, type Finding, headTop } from '../figure/pose/validate';
 import type { GeometryProbe, ProbeRegistry } from './geometry';
 
-/** A standard 45 cm plate: the tallest implement on a loaded Smith bar (not a machine measurement). */
-export const PLATE_DIAMETER_CM = 45;
-/** The pose layer's bar radius; stops are measured to the top of the bar. */
-const BAR_RADIUS_CM = ILLUSTRATIVE_SMITH.barRadiusCm;
-/** The rail is the origin of the machine frame; solving does not depend on any room measurement. */
-const RAIL_Z_CM = 0;
+/**
+ * Findings the engine checks itself, against the profile's or the typical values and with localized
+ * messages. (The probe passes no ceiling, and the illustrative machine's stops are not the user's.)
+ */
+const ENGINE_CHECKED: ReadonlySet<Finding['check']> = new Set(['bar-travel', 'ceiling']);
 
 /**
- * Poses every Smith-squat frame at the stature (M1 pose layer) and reports the envelope, the bar
- * heights and any joint past its ROM limit. Throws when a frame cannot be solved.
+ * Poses every Smith-squat frame at the stature with `checkFigureFrame` on the typical machine (D12) and
+ * reports the envelope (head or plates), the bar-top heights (stops are measured to the top of the bar),
+ * the ROM findings (signed limits; this solver's elbows are checked by magnitude only, see
+ * `validateSmithSquat`) and every other pose finding. Throws when a frame cannot be solved.
  */
 export function smithSquatProbe(sk: SkeletonDef, spec: SmithSquatSpec): GeometryProbe {
+  const smith = ILLUSTRATIVE_SMITH;
   return ({ statureCm }) => {
     let topCm = 0;
     const barTopsCm: number[] = [];
-    const rom = new Set<string>();
+    const rom: string[] = [];
+    const posing: string[] = [];
     for (const frame of spec.frames) {
-      const sol = solveSmithSquat(sk, spec, frame, { statureCm, railZCm: RAIL_Z_CM });
-      const barY = carriedBarCenter(sk, sol, spec.barRestOffsetCm)[1];
-      barTopsCm.push(barY + BAR_RADIUS_CM);
-      topCm = Math.max(topCm, headTop(sk, sol.world, sol.scaleFactor)[1], barY + PLATE_DIAMETER_CM / 2);
-      for (const side of ['l', 'r'] as const) {
-        const angles = jointAngles(sol.world, side);
-        for (const [k, limit] of Object.entries(ROM_LIMITS) as Array<[keyof typeof ROM_LIMITS, number]>) {
-          if (angles[k] > limit) rom.add(`${k.replace(/(Dorsiflex|Flex)Deg$/, '')}_${side}`);
-        }
+      const { solution, findings } = checkFigureFrame(sk, spec, frame, { statureCm, smith });
+      const barY = carriedBarCenter(sk, solution, spec.barRestOffsetCm)[1];
+      barTopsCm.push(barY + smith.barRadiusCm);
+      topCm = Math.max(topCm, headTop(sk, solution.world, solution.scaleFactor)[1], barY + smith.plateDiameterCm / 2);
+      for (const f of findings) {
+        if (f.check === 'rom') rom.push(`${frame.id}: ${f.message}`);
+        else if (!ENGINE_CHECKED.has(f.check)) posing.push(`${frame.id}: ${f.message}`);
       }
     }
-    return { topCm, barTopsCm, romExceeded: [...rom] };
+    return { topCm, barTopsCm, rom, posing };
   };
 }
 
@@ -3317,7 +3372,7 @@ export const DEFAULT_PROBES: ProbeRegistry = {
 - [ ] **Step 5: Run the tests and the checks**
 
 Run: `npx vitest run src/lib/engine src/lib/figure tests/assets && npm run lint && npm run check`
-Expected: `probes.test.ts` 13 passed; the M1 figure and asset tests still pass; 0 lint and type errors.
+Expected: `probes.test.ts` 16 passed; the M1 figure and asset tests still pass; 0 lint and type errors.
 
 - [ ] **Step 6: Commit, open the PR, merge when CI is green**
 
@@ -3326,25 +3381,25 @@ git add src/lib/engine/probes.ts src/lib/engine/probes.test.ts
 git commit -m $'feat(engine): pose the Smith squat for feasibility checks\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
 git push -u origin HEAD
 gh pr create --repo tomqwu/ai_health --title "Smith squat geometry probe" \
-  --body $'The engine poses the Smith squat at the profile stature with the M1 solver to check ceiling, bar travel and ROM.\n\nCloses #<issue>\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'
+  --body $'The engine poses the Smith squat at the profile (or typical) stature with checkFigureFrame on the typical machine, for the ceiling, bar-travel, ROM and pose checks.\n\nCloses #<issue>\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'
 ```
 When CI is green: `gh pr merge --squash --delete-branch && git checkout main && git pull`.
 
-**Done when:** the probe poses 150–200 cm statures on both skeletons within ROM, and a lowest stop above the squat's bottom makes the exercise infeasible.
+**Done when:** the probe poses 150–200 cm statures on both skeletons with no ROM or pose findings, passes pose-layer ROM findings through, and a lowest stop above the squat's bottom makes the exercise infeasible.
 
 ---
 
 ### Task 10: Feasibility
 
-`checkFeasibility(exercise, profile, catalog)` from spec §7.1: capabilities, attachments, exclusions, then geometry, combined into `feasible | infeasible | needs-info` with localizable reasons, what to measure, and what would unlock each failure.
+`checkFeasibility(exercise, profile, catalog)` from spec §7.1: capabilities, attachments, exclusions, then geometry, combined into `feasible | infeasible` (D12: no `needs-info`) with localizable reasons, what would unlock each failure, and non-blocking notes.
 
 **Files:**
 - Create: `src/lib/engine/feasibility.ts`
 - Test: `src/lib/engine/feasibility.test.ts`
 
 **Interfaces:**
-- Consumes: Task 8 (`checkGeometry`, `ownedCapabilities`, `providersOf`, types), Task 9 (`DEFAULT_PROBES`).
-- Produces: `EngineOptions = { probes?: ProbeRegistry }`, `checkFeasibility(exercise, profile, catalog, opts?): Feasibility`. Geometry runs only when checks 1–3 pass; duplicate `missing` entries are merged.
+- Consumes: Task 8 (`checkGeometry`, `ProbeRegistry`, `ownedCapabilities`, `providersOf`, `Feasibility`, `Reason`), Task 9 (`DEFAULT_PROBES`).
+- Produces: `EngineOptions = { probes?: ProbeRegistry }`, `checkFeasibility(exercise, profile, catalog, opts?): Feasibility`. Geometry runs only when checks 1–3 pass; its notes (e.g. the clearance note) are returned in `notes`.
 
 - [ ] **Step 1: Branch**
 
@@ -3359,18 +3414,18 @@ import { describe, expect, it } from 'vitest';
 import type { Profile } from '../profile/schema';
 import { checkFeasibility } from './feasibility';
 import type { GeometryProbe } from './geometry';
-import { dumbbellsOnly, fullHomeGym, lowCeiling, syntheticCatalog, unmeasured } from './testing/fixtures';
+import { dumbbellsOnly, fullHomeGym, lowCeiling, nothingMeasured, syntheticCatalog } from './testing/fixtures';
 
 const catalog = syntheticCatalog();
 const ex = (id: string) => catalog.exercises.get(id)!;
-const probe: GeometryProbe = () => ({ topCm: 180, barTopsCm: [90, 150], romExceeded: [] });
+const probe: GeometryProbe = () => ({ topCm: 180, barTopsCm: [90, 150], rom: [], posing: [] });
 const opts = { probes: { 'smith-squat': probe, 'smith-bench-press': probe } };
 const check = (id: string, p: Profile) => checkFeasibility(ex(id), p, catalog, opts);
 
 describe('checkFeasibility', () => {
   it('is feasible when every check passes', () => {
-    expect(check('smith-squat', fullHomeGym())).toEqual({ status: 'feasible', reasons: [], missing: [] });
-    expect(check('plank', dumbbellsOnly())).toEqual({ status: 'feasible', reasons: [], missing: [] });
+    expect(check('smith-squat', fullHomeGym())).toEqual({ status: 'feasible', reasons: [], notes: [] });
+    expect(check('plank', dumbbellsOnly())).toEqual({ status: 'feasible', reasons: [], notes: [] });
   });
 
   describe('1. capabilities', () => {
@@ -3416,28 +3471,27 @@ describe('checkFeasibility', () => {
   });
 
   describe('4. geometry', () => {
-    it('is needs-info with an unknown stature, listing it once', () => {
-      expect(check('smith-squat', unmeasured())).toEqual({ status: 'needs-info', reasons: [], missing: [{ kind: 'stature' }] });
+    it('is feasible at typical values when nothing is entered (D12)', () => {
+      expect(check('smith-squat', nothingMeasured())).toEqual({ status: 'feasible', reasons: [], notes: [] });
+      expect(check('db-shoulder-press', nothingMeasured())).toEqual({
+        status: 'feasible',
+        reasons: [],
+        notes: [{ key: 'engine.note.checkClearance', params: { need: { lengthCm: 243 }, margin: { lengthCm: 10 }, ceiling: { lengthCm: 240 } } }],
+      });
     });
-    it('is infeasible under a low ceiling', () => {
+    it('is infeasible under a low entered ceiling', () => {
       const r = check('db-shoulder-press', lowCeiling());
       expect(r.status).toBe('infeasible');
       expect(r.reasons.map((x) => x.check)).toEqual(['ceiling']);
     });
-    it('is needs-info when only the ceiling is unknown and the exercise is tall', () => {
-      const p: Profile = { ...fullHomeGym(), room: { clearanceMarginCm: 10 } };
-      expect(check('db-shoulder-press', p)).toEqual({ status: 'needs-info', reasons: [], missing: [{ kind: 'ceiling' }] });
-      expect(check('goblet-squat', p).status).toBe('feasible');
-    });
-    it('reports failures before missing information', () => {
+    it('checks the measured stops', () => {
       const p: Profile = { ...fullHomeGym(), equipment: fullHomeGym().equipment.map((e) => (e.id === 'smith-functional-trainer' ? { ...e, params: { smithHighestBarHeightCm: 120 } } : e)) };
       const r = check('smith-squat', p);
       expect(r.status).toBe('infeasible');
       expect(r.reasons.map((x) => x.message.key)).toEqual(['engine.reason.barAboveStop']);
-      expect(r.missing.map((m) => (m.kind === 'param' ? m.param : m.kind))).toEqual(['smithLowestBarHeightCm']);
     });
-    it('skips geometry when the exercise cannot be set up', () => {
-      expect(check('smith-squat', { ...unmeasured(), equipment: [] }).missing).toEqual([]);
+    it('skips geometry, and its notes, when the exercise cannot be set up', () => {
+      expect(check('db-shoulder-press', { ...nothingMeasured(), equipment: [] })).toMatchObject({ status: 'infeasible', notes: [] });
     });
   });
 
@@ -3462,11 +3516,12 @@ Expected: FAIL — `Failed to resolve import "./feasibility"`.
 ```ts
 import type { Catalog } from '../content/catalog';
 import type { Exercise } from '../content/schemas';
+import type { Message } from '../i18n/format';
 import type { Profile } from '../profile/schema';
 import { checkGeometry, type ProbeRegistry } from './geometry';
 import { ownedCapabilities, providersOf } from './params';
 import { DEFAULT_PROBES } from './probes';
-import { type Feasibility, type MissingInfo, missingKey, type Reason } from './types';
+import type { Feasibility, Reason } from './types';
 
 export interface EngineOptions {
   /** Pose probes by figure spec id; defaults to DEFAULT_PROBES. Tests pass synthetic ones. */
@@ -3475,8 +3530,9 @@ export interface EngineOptions {
 
 /**
  * Spec §7.1. Checks run in order: capabilities, attachments, exclusions, then geometry. Geometry is
- * skipped when an earlier check fails (the exercise cannot be set up, so it cannot be posed).
- * `limitations` never affect feasibility.
+ * skipped when an earlier check fails (the exercise cannot be set up, so it cannot be posed). Unknown
+ * inputs use typical values (D12), so the result is always feasible or infeasible. `limitations` never
+ * affect feasibility.
  */
 export function checkFeasibility(exercise: Exercise, profile: Profile, catalog: Catalog, opts: EngineOptions = {}): Feasibility {
   const reasons: Reason[] = [];
@@ -3513,51 +3569,50 @@ export function checkFeasibility(exercise: Exercise, profile: Profile, catalog: 
     reasons.push({ check: 'exclusions', message: { key: 'engine.reason.excluded' }, unlock: { kind: 'exclusion', exerciseId: exercise.id } });
   }
 
-  let missing: MissingInfo[] = [];
+  // 4. Geometry, at the profile's or the typical values.
+  let notes: Message[] = [];
   if (reasons.length === 0) {
     const geo = checkGeometry(exercise, profile, catalog, opts.probes ?? DEFAULT_PROBES);
     reasons.push(...geo.reasons);
-    const seen = new Set<string>();
-    missing = geo.missing.filter((m) => !seen.has(missingKey(m)) && seen.add(missingKey(m)));
+    notes = geo.notes;
   }
 
-  const status = reasons.length > 0 ? 'infeasible' : missing.length > 0 ? 'needs-info' : 'feasible';
-  return { status, reasons, missing };
+  return { status: reasons.length > 0 ? 'infeasible' : 'feasible', reasons, notes };
 }
 ```
 
 - [ ] **Step 5: Run the tests and the checks**
 
 Run: `npx vitest run src/lib/engine && npm run lint && npm run check`
-Expected: `feasibility.test.ts` 13 passed; 0 lint and type errors.
+Expected: `feasibility.test.ts` 12 passed; 0 lint and type errors.
 
 - [ ] **Step 6: Commit, open the PR, merge when CI is green**
 
 ```bash
 git add src/lib/engine/feasibility.ts src/lib/engine/feasibility.test.ts
-git commit -m $'feat(engine): add checkFeasibility with tri-state results\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
+git commit -m $'feat(engine): add checkFeasibility\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
 git push -u origin HEAD
 gh pr create --repo tomqwu/ai_health --title "Feasibility" \
-  --body $'checkFeasibility(): capabilities, attachments, exclusions and geometry, with reasons, missing measurements and unlocks.\n\nCloses #<issue>\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'
+  --body $'checkFeasibility(): capabilities, attachments, exclusions and geometry, with reasons, unlocks and non-blocking notes. Unknown inputs use typical values (D12).\n\nCloses #<issue>\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'
 ```
 When CI is green: `gh pr merge --squash --delete-branch && git checkout main && git pull`.
 
-**Done when:** every check has feasible, infeasible and (where it applies) needs-info tests, and limitations never change the status.
+**Done when:** every check has feasible and infeasible tests, a profile with nothing entered is checked at typical values, and limitations never change the status.
 
 ---
 ### Task 11: Time estimates and fit to time
 
 The week's data types and spec §7.3: the day estimate, the over-budget flag and "fit to time".
 
-Plan decisions (open question 4): reps are charged at the top of the range; unilateral work counts both sides; the warm-up term is 5 minutes on any day with an exercise; the first exercise's setup counts as a transition; in a kept superset the first exercise's rest is skipped. `supersetWith` always holds the partner's *template* index, so removing slots never renumbers pairs.
+Owner decision 4: reps are charged at the top of the range; unilateral work counts both sides; the warm-up term is 5 minutes on any day with an exercise; the first exercise's setup counts as a transition; in a kept superset the first exercise's rest is skipped. `supersetWith` always holds the partner's *template* index, so removing slots never renumbers pairs.
 
 **Files:**
 - Create: `src/lib/engine/plan.ts`
 - Test: `src/lib/engine/plan.test.ts`
 
 **Interfaces:**
-- Consumes: Task 3 (`Exercise`, `Reps`, `SetupState`), Task 2 (`Message`), Task 8 (`MissingInfo`, `Unlock`, `syntheticExercise`).
-- Produces: `WARMUP_SEC = 300`, `SlotPlan`, `TimeEstimate = { warmupSec, workSec, restSec, transitionSec, totalSec, minutes }`, `DayPlan = { weekday, kind, focus?, budgetMinutes, slots, estimate, overBudget }`, `Week = { templateId, days }`, `repsForTime(reps)`, `setWorkSec(reps, ex)`, `sameSetup(a, b)`, `estimateDay(slots)`, `withEstimate(day)`, `fitToTime(day)`.
+- Consumes: Task 3 (`Exercise`, `Reps`, `SetupState`), Task 2 (`Message`), Task 8 (`Unlock`, `syntheticExercise`).
+- Produces: `WARMUP_SEC = 300`, `SlotPlan` (no `needsInfo`: D12), `TimeEstimate = { warmupSec, workSec, restSec, transitionSec, totalSec, minutes }`, `DayPlan = { weekday, kind, focus?, budgetMinutes, slots, estimate, overBudget }`, `Week = { templateId, assumptions: Message[], days }`, `repsForTime(reps)`, `setWorkSec(reps, ex)`, `sameSetup(a, b)`, `estimateDay(slots)`, `withEstimate(day)`, `fitToTime(day)`.
 
 - [ ] **Step 1: Branch**
 
@@ -3598,7 +3653,6 @@ function slot(pick: Exercise | undefined, over: Partial<SlotPlan> = {}): SlotPla
     notes: [],
     notices: [],
     alternatives: [],
-    needsInfo: [],
     ...over,
   };
 }
@@ -3694,7 +3748,7 @@ import type { Exercise, Reps, SetupState } from '../content/schemas';
 import type { DayKind, Pattern, Weekday } from '../content/vocab';
 import type { Message } from '../i18n/format';
 import type { I18nText } from '../i18n/locales';
-import type { MissingInfo, Unlock } from './types';
+import type { Unlock } from './types';
 
 /** The "warm-up" term of spec §7.3: a general warm-up before every day with at least one exercise. */
 export const WARMUP_SEC = 300;
@@ -3716,14 +3770,12 @@ export interface SlotPlan {
   pick?: Exercise;
   /** Why this pick won (spec §9.1 "why it was chosen"). */
   why: Message[];
-  /** Safety notes from declared limitations. */
+  /** Non-blocking notes: overhead clearance under an assumed ceiling (D12), then safety notes from declared limitations. */
   notes: Message[];
   /** Things the user should know, e.g. a dropped override. */
   notices: Message[];
   /** Other feasible exercise ids for ⇄ swap, best first. */
   alternatives: string[];
-  /** Candidates that need a measurement first. */
-  needsInfo: { exerciseId: string; missing: MissingInfo[] }[];
   /** Set when nothing feasible fills the slot. */
   empty?: { reasons: Message[]; unlock: Unlock[] };
 }
@@ -3750,6 +3802,8 @@ export interface DayPlan {
 
 export interface Week {
   templateId: string;
+  /** Typical values standing in for unknown inputs, e.g. "planned for a typical height" (D12). */
+  assumptions: Message[];
   days: DayPlan[];
 }
 
@@ -3860,16 +3914,16 @@ When CI is green: `gh pr merge --squash --delete-branch && git checkout main && 
 
 ### Task 12: Week builder
 
-`buildWeek(template, profile, catalog)` from spec §7.2: candidates by pattern and feasibility, ranking, overrides, supersets, empty slots with reasons and unlocks, safety notes from limitations, and per-day estimates.
+`buildWeek(template, profile, catalog)` from spec §7.2: candidates by pattern and feasibility, ranking, overrides, supersets, empty slots with reasons and unlocks, clearance and safety notes, the typical values it assumed, and per-day estimates. With D12 there are no `needs-info` candidates: a profile with nothing entered is planned at typical values.
 
-Plan decision (open question 5): a day's budget is the shorter of the template day's `minutes` and the profile's `sessionMinutes`; rest days have a budget of 0.
+Owner decision 5: a day's budget is the shorter of the template day's `minutes` and the profile's `sessionMinutes`; rest days have a budget of 0.
 
 **Files:**
 - Create: `src/lib/engine/week.ts`
 - Test: `src/lib/engine/week.test.ts`
 
 **Interfaces:**
-- Consumes: Task 10 (`checkFeasibility`, `EngineOptions`), Task 11 (`SlotPlan`, `DayPlan`, `Week`, `withEstimate`), Task 3 (`slotPatterns`), Task 1 (`LIMITATION_JOINT`).
+- Consumes: Task 10 (`checkFeasibility`, `EngineOptions`), Task 11 (`SlotPlan`, `DayPlan`, `Week`, `withEstimate`), Task 8 (`assumptions`), Task 3 (`slotPatterns`), Task 1 (`LIMITATION_JOINT`).
 - Produces: `Ranked = { exercise; score; why }`, `RankContext = { previous?; limitations; used }`, `rankCandidates(candidates, ctx): Ranked[]`, `limitationNotes(exercise, limitations): Message[]`, `buildWeek(template, profile, catalog, opts?): Week`.
 
 - [ ] **Step 1: Branch**
@@ -3887,11 +3941,11 @@ import type { Profile } from '../profile/schema';
 import type { GeometryProbe } from './geometry';
 import { DEFAULT_PROBES } from './probes';
 import { buildWeek, limitationNotes, rankCandidates } from './week';
-import { fullHomeGym, SYN_TEMPLATE, syntheticCatalog, syntheticExercise, unmeasured } from './testing/fixtures';
+import { fullHomeGym, nothingMeasured, SYN_TEMPLATE, syntheticCatalog, syntheticExercise } from './testing/fixtures';
 
 const catalog = syntheticCatalog();
 const ex = (id: string) => catalog.exercises.get(id)!;
-const benchProbe: GeometryProbe = () => ({ topCm: 150, barTopsCm: [95, 140], romExceeded: [] });
+const benchProbe: GeometryProbe = () => ({ topCm: 150, barTopsCm: [95, 140], rom: [], posing: [] });
 const opts = { probes: { ...DEFAULT_PROBES, 'smith-bench-press': benchProbe } };
 const build = (p: Profile, tpl = SYN_TEMPLATE) => buildWeek(tpl, p, catalog, opts);
 const picks = (p: Profile, tpl = SYN_TEMPLATE) =>
@@ -3990,22 +4044,24 @@ describe('buildWeek', () => {
     expect(buildWeek(tpl, fullHomeGym(), catalog, opts).days[0]!.slots[0]!.empty).toEqual({ reasons: [{ key: 'engine.empty.noExercise' }], unlock: [] });
   });
 
-  it('lists needs-info candidates separately with what to measure', () => {
-    const s = slotAt(unmeasured(), 'mon/0');
-    expect(s.pick?.id).toBeUndefined();
-    expect(s.needsInfo).toEqual([
-      { exerciseId: 'smith-bench-press', missing: [{ kind: 'stature' }] },
-      { exerciseId: 'db-bench-press', missing: [{ kind: 'stature' }] },
-      { exerciseId: 'push-up', missing: [{ kind: 'stature' }] },
-    ]);
-    expect(s.empty?.unlock).toEqual([{ kind: 'measure', missing: { kind: 'stature' } }]);
-  });
-
-  it('leaves a slot empty when its only candidate needs the ceiling measured', () => {
-    const p: Profile = { ...fullHomeGym(), room: { clearanceMarginCm: 10 } };
-    const s = slotAt(p, 'mon/1');
-    expect(s.pick).toBeUndefined();
-    expect(s.needsInfo).toEqual([{ exerciseId: 'db-shoulder-press', missing: [{ kind: 'ceiling' }] }]);
+  describe('typical values (D12)', () => {
+    it('plans a profile with nothing entered, and says what it assumed', () => {
+      expect(picks(nothingMeasured())).toEqual(picks(fullHomeGym()));
+      expect(build(nothingMeasured()).assumptions).toEqual([
+        { key: 'engine.assumed.stature', params: { height: { lengthCm: 175 } } },
+        { key: 'engine.assumed.ceiling', params: { ceiling: { lengthCm: 240 } } },
+      ]);
+      expect(build(fullHomeGym()).assumptions).toEqual([]);
+    });
+    it('keeps an overhead exercise under an assumed ceiling, with the clearance note before safety notes', () => {
+      const p: Profile = { ...nothingMeasured(), limitations: ['shoulder-sensitive'] };
+      const s = slotAt(p, 'mon/1');
+      expect(s.pick?.id).toBe('db-shoulder-press');
+      expect(s.notes).toEqual([
+        { key: 'engine.note.checkClearance', params: { need: { lengthCm: 243 }, margin: { lengthCm: 10 }, ceiling: { lengthCm: 240 } } },
+        { key: 'engine.note.jointHigh', params: { joint: { key: 'joint.shoulder' } } },
+      ]);
+    });
   });
 
   describe('limitations', () => {
@@ -4104,6 +4160,7 @@ import { LIMITATION_JOINT, type Limitation } from '../content/vocab';
 import type { Message } from '../i18n/format';
 import type { Profile } from '../profile/schema';
 import { checkFeasibility, type EngineOptions } from './feasibility';
+import { assumptions } from './geometry';
 import { type DayPlan, type SlotPlan, type Week, withEstimate } from './plan';
 import type { Feasibility, Unlock } from './types';
 
@@ -4178,10 +4235,7 @@ function emptyReasons(matching: readonly Exercise[], feas: (e: Exercise) => Feas
   if (matching.length === 0) return { reasons: [{ key: 'engine.empty.noExercise' }], unlock: [] };
   const results = matching.map(feas);
   const reasons = unique(results.flatMap((r) => r.reasons.map((x) => x.message)));
-  const unlock: Unlock[] = unique([
-    ...results.flatMap((r) => r.reasons.flatMap((x) => (x.unlock ? [x.unlock] : []))),
-    ...results.flatMap((r) => r.missing.map((missing): Unlock => ({ kind: 'measure', missing }))),
-  ]);
+  const unlock: Unlock[] = unique(results.flatMap((r) => r.reasons.flatMap((x) => (x.unlock ? [x.unlock] : []))));
   return { reasons: [{ key: 'engine.empty.noneFeasible' }, ...reasons], unlock };
 }
 
@@ -4193,7 +4247,8 @@ function budgetFor(day: Day, profile: Profile): number {
 /**
  * Spec §7.2: fill every slot of every day. Candidates match the slot's pattern and are feasible; a
  * still-feasible user override wins; unfillable slots stay, with reasons. Supersets are kept only when
- * both picks share a station. Deterministic for the same inputs.
+ * both picks share a station. Unknown inputs use typical values (D12), listed in `assumptions`.
+ * Deterministic for the same inputs.
  */
 export function buildWeek(template: Template, profile: Profile, catalog: Catalog, opts: EngineOptions = {}): Week {
   const cache = new Map<string, Feasibility>();
@@ -4212,7 +4267,6 @@ export function buildWeek(template: Template, profile: Profile, catalog: Catalog
       const patterns = slotPatterns(slot);
       const matching = all.filter((e) => patterns.includes(e.pattern));
       const feasible = matching.filter((e) => feas(e).status === 'feasible');
-      const needsInfo = matching.filter((e) => feas(e).status === 'needs-info').map((e) => ({ exerciseId: e.id, missing: feas(e).missing }));
       const ranked = rankCandidates(feasible, { previous, limitations: profile.limitations, used });
       const notices: Message[] = [];
 
@@ -4243,10 +4297,9 @@ export function buildWeek(template: Template, profile: Profile, catalog: Catalog
         supersetWith: slot.supersetWith,
         pick,
         why: pick ? why : [],
-        notes: pick ? limitationNotes(pick, profile.limitations) : [],
+        notes: pick ? [...feas(pick).notes, ...limitationNotes(pick, profile.limitations)] : [],
         notices,
         alternatives: ranked.map((r) => r.exercise.id).filter((id) => id !== pick?.id),
-        needsInfo,
         empty: pick ? undefined : emptyReasons(matching, feas),
       };
       if (pick) {
@@ -4268,7 +4321,7 @@ export function buildWeek(template: Template, profile: Profile, catalog: Catalog
     return withEstimate({ weekday: day.weekday, kind: day.kind, focus: day.focus, budgetMinutes: budgetFor(day, profile), slots: paired });
   });
 
-  return { templateId: template.id, days };
+  return { templateId: template.id, assumptions: assumptions(profile), days };
 }
 ```
 
@@ -4284,11 +4337,11 @@ git add src/lib/engine/week.ts src/lib/engine/week.test.ts
 git commit -m $'feat(engine): fill a week from a template with ranking, overrides and supersets\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
 git push -u origin HEAD
 gh pr create --repo tomqwu/ai_health --title "Week builder" \
-  --body $'buildWeek(): feasible candidates, §7.2 ranking, overrides with notices, supersets, empty slots with unlocks, limitation notes.\n\nCloses #<issue>\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'
+  --body $'buildWeek(): feasible candidates, §7.2 ranking, overrides with notices, supersets, empty slots with unlocks, clearance and limitation notes, typical-value assumptions (D12).\n\nCloses #<issue>\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'
 ```
 When CI is green: `gh pr merge --squash --delete-branch && git checkout main && git pull`.
 
-**Done when:** the synthetic template fills deterministically, and ranking, overrides, supersets, needs-info candidates and empty slots each have passing tests.
+**Done when:** the synthetic template fills deterministically, a profile with nothing entered is planned at typical values with its assumptions and clearance notes, and ranking, overrides, supersets and empty slots each have passing tests.
 
 ---
 
@@ -4302,7 +4355,7 @@ Spec §7.4 plus a single public entry point for the engine, so M4 imports `src/l
 
 **Interfaces:**
 - Consumes: Task 11 (`DayPlan`, `withEstimate`), Task 8 fixtures.
-- Produces: `SHORT_SESSION_MAX_SLOTS = 3`, `SHORT_SESSION_SETS = 2`, `SHORT_SESSION_MIN_RIR = 3`, `shortSession(day): DayPlan`; `src/lib/engine/index.ts` exporting `checkFeasibility`, `EngineOptions`, `ASSUMED_CEILING_CM`, probe types, `DEFAULT_PROBES`, plan types, `estimateDay`, `fitToTime`, `withEstimate`, `shortSession`, feasibility types and `buildWeek`.
+- Produces: `SHORT_SESSION_MAX_SLOTS = 3`, `SHORT_SESSION_SETS = 2`, `SHORT_SESSION_MIN_RIR = 3`, `shortSession(day): DayPlan`; `src/lib/engine/index.ts` exporting `checkFeasibility`, `EngineOptions`, `TYPICAL_STATURE_CM`, `ASSUMED_CEILING_CM`, `assumptions`, probe types, `DEFAULT_PROBES`, plan types, `estimateDay`, `fitToTime`, `withEstimate`, `shortSession`, feasibility types and `buildWeek`.
 
 - [ ] **Step 1: Branch**
 
@@ -4340,7 +4393,6 @@ function slot(index: number, pick: Exercise | undefined, over: Partial<SlotPlan>
     notes: [],
     notices: [],
     alternatives: [],
-    needsInfo: [],
     ...over,
   };
 }
@@ -4423,11 +4475,11 @@ export function shortSession(day: DayPlan): DayPlan {
 ```ts
 /** Public API of the planning engine (spec §7). Pure: no DOM, no storage, no Astro. */
 export { checkFeasibility, type EngineOptions } from './feasibility';
-export { ASSUMED_CEILING_CM, type GeometryProbe, type ProbeRegistry, type ProbeResult } from './geometry';
+export { ASSUMED_CEILING_CM, assumptions, type GeometryProbe, type ProbeRegistry, type ProbeResult, TYPICAL_STATURE_CM } from './geometry';
 export { DEFAULT_PROBES } from './probes';
 export { type DayPlan, estimateDay, fitToTime, type SlotPlan, type TimeEstimate, type Week, withEstimate } from './plan';
 export { shortSession } from './shortSession';
-export type { Feasibility, FeasibilityStatus, MissingInfo, Reason, Unlock } from './types';
+export type { Feasibility, FeasibilityStatus, Reason, Unlock } from './types';
 export { buildWeek } from './week';
 ```
 
@@ -4481,10 +4533,10 @@ import { describe, expect, it } from 'vitest';
 import type { Profile } from '../profile/schema';
 import { checkFeasibility, fitToTime, shortSession } from './index';
 import { buildWeek } from './week';
-import { dumbbellsOnly, fullHomeGym, lowCeiling, SYN_TEMPLATE, syntheticCatalog, unmeasured } from './testing/fixtures';
+import { dumbbellsOnly, fullHomeGym, lowCeiling, nothingMeasured, SYN_TEMPLATE, syntheticCatalog } from './testing/fixtures';
 
 const catalog = syntheticCatalog();
-const PROFILES: Record<string, () => Profile> = { fullHomeGym, dumbbellsOnly, unmeasured, lowCeiling };
+const PROFILES: Record<string, () => Profile> = { fullHomeGym, dumbbellsOnly, nothingMeasured, lowCeiling };
 
 describe.each(Object.entries(PROFILES))('synthetic profile %s', (_name, make) => {
   const profile = make();
@@ -4534,14 +4586,18 @@ describe('scenario expectations', () => {
       .filter((s) => s.pick)
       .map((s) => s.key);
 
-  it('a fully measured home gym fills every slot except cardio without a treadmill', () => {
+  it('a full home gym fills every slot except cardio without a treadmill', () => {
     expect(filled(fullHomeGym())).toEqual(['mon/0', 'mon/1', 'mon/2', 'mon/3', 'tue/0', 'tue/1', 'tue/2', 'thu/0', 'thu/1']);
   });
   it('dumbbells only: no cable or Smith work, no vertical pull', () => {
     expect(filled(dumbbellsOnly())).toEqual(['mon/0', 'mon/1', 'mon/3', 'tue/0', 'tue/1', 'tue/2', 'thu/1']);
   });
-  it('an unmeasured profile plans nothing until the height is known', () => {
-    expect(filled(unmeasured())).toEqual([]);
+  it('a profile with nothing entered is planned at typical values (D12)', () => {
+    expect(filled(nothingMeasured())).toEqual(filled(fullHomeGym()));
+    const week = buildWeek(SYN_TEMPLATE, nothingMeasured(), catalog);
+    expect(week.assumptions.map((m) => m.key)).toEqual(['engine.assumed.stature', 'engine.assumed.ceiling']);
+    const overhead = week.days[0]!.slots[1]!;
+    expect(overhead.notes.map((m) => m.key)).toEqual(['engine.note.checkClearance']);
   });
   it('a low ceiling rules out overhead pressing but keeps the rest', () => {
     expect(filled(lowCeiling())).not.toContain('mon/1');
@@ -4568,20 +4624,21 @@ references, so `npm run build` fails on any mistake. The design spec (§5) is th
 ## Rules
 
 - **Generic only.** No brand or model names, no personal measurements, no photos of anyone's home.
-  Dimensions in `illustrativeDefaults` are drawing values, labeled "illustrative" on pages, and are
-  never used to decide what fits.
+  Dimensions in `illustrativeDefaults` are typical values: pages draw them (labeled "illustrative"), and
+  the engine uses them whenever a user has not entered their own (spec D12). Every parameter the geometry
+  checks read (`GEOMETRY_PARAMS` in `src/lib/content/vocab.ts`) needs one, or the build fails.
 - **Both languages.** Every user-facing field is `{ en, zh }`; `zh` is Simplified Chinese and must contain
   Chinese characters.
 - **Ids** are kebab-case, unique per collection, and match the file name (`rope.yaml` → `id: rope`).
-- **Positions in words.** Describe pulley, J-hook and catch positions as high / chest height / low; hole
-  numbers only ever appear in a user's personal plan.
+- **Positions in words.** Describe pulley, J-hook and catch positions as high / chest height / low. There
+  are no hole numbers in v1 (spec D12).
 
 ## Equipment (`src/content/equipment/<id>.yaml`)
 
 `id`, `kind` (station | bench | free-weight | cardio | accessory), `name`, `capabilities` (what exercises can
 require), and `parameters`: what a user can measure. Each parameter has a `type` (cm, deg, bool, count,
-enum, enum-set, holes, holes-range, stack, weights), a `label` and `how` to measure it; `enum` and
-`enum-set` also list `values`. Mark rarely known values `optional: true`.
+enum, enum-set, stack, weights), a `label` and `how` to measure it; `enum` and `enum-set` also list
+`values`. No parameter is ever required: users may enter their own values, and nothing asks them to.
 
 ## Attachments (`src/content/attachments/<id>.yaml`)
 
@@ -4625,13 +4682,13 @@ Add a section before "## Figures":
 ```markdown
 ## Engine
 
-`src/lib/engine` implements spec §7: `checkFeasibility` (capabilities, attachments, exclusions, geometry), `buildWeek` (pattern slots, ranking, overrides, supersets, empty slots), `estimateDay` / `fitToTime` and `shortSession`. Geometry poses an exercise with a probe from `DEFAULT_PROBES` (the Smith squat today); exercises without a probe use a conservative stature-based envelope until the M3 pose library. Tests use synthetic catalogs and profiles from `src/lib/engine/testing/fixtures.ts`.
+`src/lib/engine` implements spec §7: `checkFeasibility` (capabilities, attachments, exclusions, geometry; feasible or infeasible), `buildWeek` (pattern slots, ranking, overrides, supersets, empty slots, assumptions), `estimateDay` / `fitToTime` and `shortSession`. Nothing waits on a measurement (spec D12): an unknown height poses at a typical 175 cm, an unknown ceiling is assumed to be 240 cm (exceeding it adds a "check overhead clearance" note), and unmeasured equipment uses its `illustrativeDefaults`. Geometry poses an exercise with a probe from `DEFAULT_PROBES` (the Smith squat, through `checkFigureFrame` on the typical machine); exercises without a probe use a conservative stature-based envelope until the M3 pose library. Tests use synthetic catalogs and profiles from `src/lib/engine/testing/fixtures.ts`.
 ```
 
 - [ ] **Step 5: Full verification**
 
 Run: `npm test && npm run lint && npm run check && npm run build`
-Expected: every test file passes (M2 adds 16 test files and 179 tests to the suite); 0 lint and type errors; the build completes with only the two expected `templates` warnings.
+Expected: every test file passes (M2 adds 16 test files and 184 tests to the suite); 0 lint and type errors; the build completes with only the two expected `templates` warnings.
 
 - [ ] **Step 6: Privacy check**
 
@@ -4656,7 +4713,7 @@ gh issue close 17 --repo tomqwu/ai_health --comment "M2 exit criterion met: engi
 M=$(gh api repos/tomqwu/ai_health/milestones --jq '.[] | select(.title=="M2 Content model & engine") | .number')
 gh issue list --repo tomqwu/ai_health --milestone "M2 Content model & engine" --state open
 ```
-Close the milestone (`gh api -X PATCH repos/tomqwu/ai_health/milestones/$M -f state=closed`) only when the list is empty; #40 is part of this milestone.
+Close the milestone (`gh api -X PATCH repos/tomqwu/ai_health/milestones/$M -f state=closed`) only when the list is empty.
 
 **Done when (M2 exit):** engine tests are green on synthetic profiles and CI passes on `main`. Next: write the M3 plan.
 
@@ -4665,39 +4722,19 @@ Close the milestone (`gh api -X PATCH repos/tomqwu/ai_health/milestones/$M -f st
 ## Self-review
 
 **Spec coverage.**
+- §3 D12: typical stature and ceiling, illustrative defaults for unmeasured parameters and the clearance note (Tasks 2, 8, 10, 12); every geometry parameter has a typical value, enforced by the catalog (Tasks 1, 4, 5); no hole numbers (Tasks 1, 5); no measurement prompts or required values (Tasks 1, 6); `needs-info` dropped consistently (Tasks 8–14).
 - §4.1/§4.2 layout and boundaries: content in `src/content`, schemas and engine pure in `src/lib`, `src/catalog.ts` the only collection reader (Tasks 3–5); profile the only storage user (Task 7, Step 5 grep).
 - §5.1–5.5 content model: Tasks 1, 3; cross-references and "every template pattern has an exercise": Task 4; build failure: Task 5. Guide MDX pairs and `guide`/`model3d` reference checks wait for M5/M3 (the fields are optional until then).
-- §6 profile: schema, `aih.profile`, version + migrations, export/import, no personal fields (strict objects): Tasks 6–7.
-- §7.1 feasibility with all unknown-input rules: Tasks 8–10. §7.2 week builder: Task 12. §7.3 estimate and fit-to-time: Task 11. §7.4 short session: Task 13. §7.5 and §7.6: not in M2 (open question 13).
+- §6 profile: schema, `aih.profile`, version + migrations, export/import, no personal fields (strict objects), optional stature, ceiling, limitations and equipment overrides (§9.1, D12): Tasks 6–7.
+- §7.1 feasibility with the D12 unknown-input rules: Tasks 8–10, on the pose API merged in #45 (`checkFigureFrame`, signed ROM with the Smith-squat elbow exception). §7.2 week builder: Task 12. §7.3 estimate and fit-to-time: Task 11. §7.4 short session: Task 13. §7.5 is not in v1 (D12); §7.6 is M4 (owner decision 13).
 - §10 i18n and units: Task 2 (dictionaries, `Message`, units); Zod `I18n` checks: Tasks 1, 3.
 - §11 errors: corrupt profile backup, storage unavailable, invalid import, unfillable slot, over budget, dropped override, older version: Tasks 6, 7, 11, 12.
-- §12 safety: limitations add notes and never change feasibility (Tasks 10, 12); no bypassed stops (bar travel against measured stops, Task 8).
-- §13 privacy: synthetic fixtures only, no brands, profile never leaves the browser (no network code in M2).
+- §12 safety: limitations add notes and never change feasibility (Tasks 10, 12); no bypassed stops (bar travel against the measured or typical stops, Task 8); overhead clearance is flagged under an assumed ceiling (Tasks 8, 12).
+- §13 privacy: synthetic fixtures only, no brands, test ceilings are a standard 8 ft (243.84 cm) or deliberately low, profile never leaves the browser (no network code in M2).
 - §14 testing rows for Engine, Profile, i18n and Content integrity: Tasks 2–14; M2 exit: Task 14.
 
-**Placeholder scan.** Every code step contains the complete file. `<issue>` is the number from the Task 0 table, filled in at execution time.
+**Placeholder scan.** Every code step contains the complete file or the exact lines to add. `<issue>` is the number from the Task 0 table, filled in at execution time. No code in the plan uses a `needs-info` status, `MissingInfo`, hole types, an `optional` parameter flag or the pre-#45 pose API (`romExceeded`, numeric `ROM_LIMITS`, `jointAngles(world, side)`, separate `solveSmithSquat` + `validateSmithSquat` calls).
 
-**Type consistency.** `ProbeResult.barTopsCm` (Tasks 8, 9), `SlotPlan.supersetWith` as a template index (Tasks 11–13), `EngineOptions.probes` (Tasks 10, 12), `Message`/`MessageKey` (Tasks 2, 6, 8–12) and `ParamValue` (Tasks 1, 6, 8) are used with the same names and shapes throughout. All code in this plan was prototyped together in a scratch copy of the repository before the plan was written: the full suite passed (179 new tests), and `eslint`, `astro check` and `astro build` were clean.
+**Type consistency.** `ProbeResult` (`topCm`, `barTopsCm`, `rom`, `posing`; Tasks 8–10, 12), `Feasibility` (`status`, `reasons`, `notes`; Tasks 8, 10, 12, 14), `Week.assumptions` (Tasks 11, 12, 14), `GeometryParam` (Tasks 1, 4, 8), `SlotPlan.supersetWith` as a template index (Tasks 11–13), `EngineOptions.probes` (Tasks 10, 12), `Message`/`MessageKey` (Tasks 2, 6, 8–12) and `ParamValue` (Tasks 1, 6, 8) are used with the same names and shapes throughout.
 
----
-
-## Open questions for the owner
-
-M2 can start once these are answered; the plan's current choice is in bold.
-
-1. **Profile parameter values.** Spec §6 types `equipment[].params` as `number | boolean | string[]`, but hole numbering, hole ranges, weight stacks, owned loads and enums need objects or strings. **Widen it to the parameter value types of §5.1.** OK?
-2. **How exercises reference figures.** §5.3 embeds camera, scene and joint frames in the exercise YAML; M1 built figures as TypeScript specs (`src/lib/figure/fixtures`). **Exercises say `figure: { spec: <id> }` until M3 settles the generalized pose format.** OK, or should M2 already validate the §5.3 frame shape?
-3. **Geometry before M3.** Only the Smith squat can be posed today. **Other exercises use a conservative envelope (standing = height; overhead press = 1.33 × height; pull-up = bar height + 0.13 × height) with no joint-range check; Smith-bar exercises without a pose model are never planned.** Acceptable as an interim, or should unposed exercises be treated as "not checked yet" and kept out of plans?
-4. **Time estimate details the spec leaves open.** **Reps counted at the top of the range; one-sided exercises count both sides; a 5-minute warm-up; the first exercise's setup counts; a kept superset skips the first exercise's rest.** Any to change?
-5. **Daily time budget.** Template days have `minutes` and the profile has `sessionMinutes`. **Budget = the shorter of the two.** Or should `sessionMinutes` replace the template's minutes?
-6. **Full-body volume cap.** **A `fullBody: true` flag on a template day, checked at build time (≤ 10 working sets, RIR ≥ 2 on every slot).** Or should the engine enforce it when filling?
-7. **Bench-inside-rack check.** **Applies when an exercise uses a bench angle at the Smith or barbell station.** Or add an explicit `benchInRack: true` field to exercises?
-8. **Fields beyond the spec.** **A bilingual `label` on every equipment parameter (the wizard and "what to measure" need a name); `uses` on attachments with `requires.attachmentUses` on exercises (the roller hold-down's three uses); `rir` optional on slots (cardio has none).** OK?
-9. **Labels for enum values** (pulley high / chest / low, cable ratio "unknown", bench angles). **Raw values in M2; M4 adds EN/中文 labels.** Should labels live in the content YAML or in the UI dictionaries?
-10. **Units of owned loads.** **Weight stacks and dumbbell loads are stored as printed, in lb or kg, never converted** (like D10), while lengths are stored in cm. This departs from "storage is metric" for loads. OK?
-11. **Pull-up bar station.** `setupState.station` has no value for the pull-up bar; **pull-ups would use `smith` (same machine).** Add a `pull-up-bar` station instead?
-12. **No height, no plan.** Per §7.1 an unknown height makes every geometry check "needs info", so **an unmeasured profile gets an empty week** until the wizard's first question is answered. Intended?
-13. **§7.5 hole numbers and §7.6 progression** are engine features but not in §16's M2 list. **Both move to M4 with the planner UI.** OK?
-14. **Seed content.** **M2 ships three generic equipment classes (Smith + functional trainer, adjustable bench, dumbbells), the seven v1 attachments and the Smith squat (without alternatives); no templates, so the build warns that `templates` is empty until M5.** Should M2 also add the other ten v1 equipment classes?
-15. **Vocabularies the spec does not list.** Guide section ids (**chest, back, shoulders, arms, lower-squat, lower-hinge, core, setup-safety**; only `lower-squat` is in the spec), the 20 muscle ids in `vocab.ts`, and the bench angle stops (**0–90° in 15° steps**). OK?
-16. **Corrupt saved profile.** **The raw text is copied to `aih.profile.backup.<timestamp>` and `aih.profile` is removed**, so the "Import or Reset" banner appears once. Or keep the original in place until the user chooses?
+**Dry run (2026-09-30).** Every code block of this plan was extracted into a scratch copy of `docs/m2-plan` (rebased on `main` after #45), task by task and as a whole. The full suite passed (34 files, 385 tests: M2 adds 16 files and 184 tests), `eslint` and `astro check` reported 0 problems, `astro build` completed with only the two expected `templates` warnings, and the three Task 5 "rejects bad content" builds failed with the expected messages.
