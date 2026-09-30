@@ -102,18 +102,19 @@ export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, 
     return { reasons: [{ check: 'bar-travel', message: { key: 'engine.reason.noGeometryModel' } }], notes };
   }
 
-  // Ceiling: head, hands and implements plus the margin.
+  // Ceiling: head, hands and implements plus the margin. Heights are compared unrounded; only the values
+  // shown are rounded, outward (the need up, the ceiling down), so a failure never reads as a fit.
   const margin = profile.room.clearanceMarginCm;
-  const needCm = Math.ceil((probed ? probed.topCm : envelopeTopCm(ex, statureCm, profile, catalog)) + margin);
+  const need = (probed ? probed.topCm : envelopeTopCm(ex, statureCm, profile, catalog)) + margin;
   const ceiling = profile.room.ceilingHeightCm;
   if (ceiling === undefined) {
-    if (needCm > ASSUMED_CEILING_CM) {
-      notes.push({ key: 'engine.note.checkClearance', params: { need: { lengthCm: needCm }, margin: { lengthCm: margin }, ceiling: { lengthCm: ASSUMED_CEILING_CM } } });
+    if (need > ASSUMED_CEILING_CM) {
+      notes.push({ key: 'engine.note.checkClearance', params: { need: { lengthCm: Math.ceil(need) }, margin: { lengthCm: margin }, ceiling: { lengthCm: ASSUMED_CEILING_CM } } });
     }
-  } else if (needCm > ceiling) {
+  } else if (need > ceiling) {
     reasons.push({
       check: 'ceiling',
-      message: { key: 'engine.reason.ceiling', params: { need: { lengthCm: needCm }, margin: { lengthCm: margin }, ceiling: { lengthCm: ceiling } } },
+      message: { key: 'engine.reason.ceiling', params: { need: { lengthCm: Math.ceil(need) }, margin: { lengthCm: margin }, ceiling: { lengthCm: Math.floor(ceiling) } } },
     });
   }
 
@@ -126,19 +127,20 @@ export function checkGeometry(ex: Exercise, profile: Profile, catalog: Catalog, 
     if (lowestCm === undefined || highestCm === undefined) {
       reasons.push({ check: 'bar-travel', message: { key: 'engine.reason.stopsUnknown' } });
     } else {
-      // Rounded outward, so a bar 0.4 cm past a stop never reads as the stop itself.
+      // Compared unrounded. The values shown are rounded apart, each away from the other (below: the bar down,
+      // the stop up; above: the bar up, the stop down), so a bar 0.2 cm past a stop never reads as the stop.
       const low = Math.min(...probed.barCentersCm);
       const high = Math.max(...probed.barCentersCm);
       if (low < lowestCm) {
         reasons.push({
           check: 'bar-travel',
-          message: { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: Math.floor(low) }, stop: { lengthCm: lowestCm } } },
+          message: { key: 'engine.reason.barBelowStop', params: { height: { lengthCm: Math.floor(low) }, stop: { lengthCm: Math.ceil(lowestCm) } } },
         });
       }
       if (high > highestCm) {
         reasons.push({
           check: 'bar-travel',
-          message: { key: 'engine.reason.barAboveStop', params: { height: { lengthCm: Math.ceil(high) }, stop: { lengthCm: highestCm } } },
+          message: { key: 'engine.reason.barAboveStop', params: { height: { lengthCm: Math.ceil(high) }, stop: { lengthCm: Math.floor(highestCm) } } },
         });
       }
     }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Equipment } from '../content/schemas';
 import type { Profile } from '../profile/schema';
+import { formatMessage } from '../i18n/format';
 import { ASSUMED_CEILING_CM, assumptions, checkGeometry, type GeometryProbe, type ProbeRegistry } from './geometry';
 import { EIGHT_FT_CEILING_CM, fullHomeGym, lowCeiling, nothingMeasured, SYN_EQUIPMENT, syntheticCatalog } from './testing/fixtures';
 
@@ -88,7 +89,8 @@ describe('checkGeometry', () => {
         reasons: [
           {
             check: 'ceiling',
-            message: { key: 'engine.reason.ceiling', params: { need: { lengthCm: 251 }, margin: { lengthCm: 10 }, ceiling: { lengthCm: EIGHT_FT_CEILING_CM } } },
+            // 250.2 cm needed, shown rounded up; the 243.84 cm ceiling shown rounded down
+            message: { key: 'engine.reason.ceiling', params: { need: { lengthCm: 251 }, margin: { lengthCm: 10 }, ceiling: { lengthCm: 243 } } },
           },
         ],
         notes: [],
@@ -129,6 +131,17 @@ describe('checkGeometry', () => {
       // top of a pull-up for a tall user: 210 + 0.13 × 190 + 10 = 244.7 → 245 > 243.84; typical: 243 fits
       expect(checks(checkGeometry(ex('pull-up'), tall(190), catalog, {}))).toEqual(['ceiling']);
       expect(checkGeometry(ex('pull-up'), tall(175), catalog, {})).toEqual(PASS);
+    });
+    it('compares the unrounded need with the unrounded ceiling', () => {
+      // top of a pull-up at 178 cm: 210 + 0.13 × 178 + 10 = 243.14 ≤ 243.84, although 243.14 rounds up to 244
+      expect(checkGeometry(ex('pull-up'), tall(178), catalog, {})).toEqual(PASS);
+    });
+    it('shows the need rounded up and the ceiling rounded down, so a failure never reads as a fit', () => {
+      // 233.9 + 10 = 243.9 > 243.84; rounded to the nearest cm both would read 244 cm
+      const [reason] = checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(fixed({ topCm: 233.9 }))).reasons;
+      expect(reason?.message.params).toEqual({ need: { lengthCm: 244 }, margin: { lengthCm: 10 }, ceiling: { lengthCm: 243 } });
+      expect(formatMessage('en', reason!.message)).toBe('Needs 244 cm of height, including a 10 cm margin; your ceiling is 243 cm');
+      expect(formatMessage('en', reason!.message, { length: 'in' })).toBe('Needs 96.1 in of height, including a 3.9 in margin; your ceiling is 95.7 in');
     });
     it('passes when the need equals a measured ceiling', () => {
       const p: Profile = { ...fullHomeGym(), room: { ceilingHeightCm: 240, clearanceMarginCm: 10 } };
@@ -185,6 +198,21 @@ describe('checkGeometry', () => {
     it('reports bar heights rounded outward, so the height never reads as the stop itself', () => {
       const o = checkGeometry(ex('smith-squat'), fullHomeGym(), catalog, smithProbes(fixed({ barCentersCm: [44.6, 185.4] })));
       expect(o.reasons.map((r) => r.message.params?.height)).toEqual([{ lengthCm: 44 }, { lengthCm: 186 }]);
+    });
+    it('compares unrounded stops, and shows the bar and the stop rounded apart so they never read as equal', () => {
+      const p = withParams(fullHomeGym(), { smithLowestBarHeightCm: 45.3, smithHighestBarHeightCm: 184.7 });
+      // within the stops: no failure, although 45.3 and 45.4 both round to 45 cm
+      expect(checkGeometry(ex('smith-squat'), p, catalog, smithProbes(fixed({ barCentersCm: [45.4, 184.6] })))).toEqual(PASS);
+      // 0.2 cm past each stop: both round to the stop at the nearest cm
+      const o = checkGeometry(ex('smith-squat'), p, catalog, smithProbes(fixed({ barCentersCm: [45.1, 184.9] })));
+      expect(o.reasons.map((r) => r.message.params)).toEqual([
+        { height: { lengthCm: 45 }, stop: { lengthCm: 46 } },
+        { height: { lengthCm: 185 }, stop: { lengthCm: 184 } },
+      ]);
+      expect(o.reasons.map((r) => formatMessage('en', r.message))).toEqual([
+        'The bar would go down to 45 cm, below the lowest stop at 46 cm',
+        'The bar would rise to 185 cm, above the highest stop at 184 cm',
+      ]);
     });
     it('refuses a probe that reports no bar heights', () => {
       const noModel = [{ check: 'bar-travel', message: { key: 'engine.reason.noGeometryModel' } }];
