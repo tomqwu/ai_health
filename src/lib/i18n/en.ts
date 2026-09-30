@@ -33,6 +33,7 @@ export const en = {
   'figure.resetView': 'Reset view',
   'figure.loading': 'Loading the 3D model…',
   'figure.noWebgl': '3D view is not available on this device; showing still images.',
+  'figure.loadError': 'The 3D view could not be loaded; showing still images.',
   'figure.illustrative': 'Illustrative dimensions',
   'figure.dragHint': 'Drag to rotate',
   'spike.title': '3D figure preview: Smith machine squat',

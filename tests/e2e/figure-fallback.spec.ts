@@ -8,5 +8,10 @@ test('the spike page falls back to still images without WebGL', async ({ page })
   await page.goto('/ai_health/en/dev/figure-spike/');
   const viewer = page.locator('[data-figure-status="unavailable"]');
   await expect(viewer).toBeVisible({ timeout: 60_000 });
-  await expect(viewer.locator('img')).toHaveCount(3);
+  const images = viewer.locator('img');
+  await expect(images).toHaveCount(3);
+  for (const img of await images.all()) {
+    await img.scrollIntoViewIfNeeded();
+    await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+  }
 });

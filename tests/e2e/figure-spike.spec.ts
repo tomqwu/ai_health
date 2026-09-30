@@ -1,5 +1,21 @@
 import { expect, test } from '@playwright/test';
+import type { Locator } from '@playwright/test';
 import { collectErrors } from './helpers';
+
+// Downsampled RGB signature of the canvas: samples every 7th pixel, hashed (FNV-1a) into one number.
+const pixelSignature = (canvas: Locator) =>
+  canvas.evaluate((c: HTMLCanvasElement) => {
+    const ctx = Object.assign(document.createElement('canvas'), { width: c.width, height: c.height }).getContext('2d')!;
+    ctx.drawImage(c, 0, 0);
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    let hash = 2166136261;
+    for (let i = 0; i < d.length; i += 4 * 7) {
+      hash = Math.imul(hash ^ d[i]!, 16777619);
+      hash = Math.imul(hash ^ d[i + 1]!, 16777619);
+      hash = Math.imul(hash ^ d[i + 2]!, 16777619);
+    }
+    return hash >>> 0;
+  });
 
 for (const lang of ['en', 'zh']) {
   test(`/${lang}/dev/figure-spike/ renders the 3D viewer, frames and passing checks`, async ({ page }) => {
@@ -27,6 +43,9 @@ for (const lang of ['en', 'zh']) {
 test('frame buttons switch the pose', async ({ page }) => {
   await page.goto('/ai_health/en/dev/figure-spike/');
   await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  const canvas = page.locator('canvas.figure-canvas');
+  const before = await pixelSignature(canvas);
   await page.getByRole('button', { name: /2\. Bottom/ }).click();
   await expect(page.getByRole('button', { name: /2\. Bottom/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => pixelSignature(canvas)).not.toBe(before);
 });

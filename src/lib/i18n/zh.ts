@@ -35,6 +35,7 @@ export const zh: Dictionary = {
   'figure.resetView': '重置视角',
   'figure.loading': '正在加载 3D 模型…',
   'figure.noWebgl': '此设备无法显示 3D 视图，改为显示静态图片。',
+  'figure.loadError': '3D 视图加载失败，改为显示静态图片。',
   'figure.illustrative': '示意尺寸',
   'figure.dragHint': '拖动可旋转',
   'spike.title': '3D 人物预览：史密斯机深蹲',

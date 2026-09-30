@@ -12,6 +12,7 @@ import './figure.css';
 interface Props { lang: Locale }
 const { lang } = Astro.props;
 const sk = skeletonJson as unknown as SkeletonDef;
+const deg = (n: number) => `${Math.round(n) || 0}°`;
 const STATURES = [150, 165, 175, 190, 200];
 const rows = STATURES.flatMap((statureCm) =>
   SMITH_SQUAT.frames.map((frame) => {
@@ -21,7 +22,7 @@ const rows = STATURES.flatMap((statureCm) =>
       statureCm,
       label: frame.label[lang],
       findings: validateSmithSquat(sk, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: SMITH_SQUAT.barRestOffsetCm }),
-      angles: `${t(lang, 'angle.trunk')} ${sol.trunkDeg.toFixed(0)}° · ${t(lang, 'angle.hip')} ${a.hipFlexDeg.toFixed(0)}° · ${t(lang, 'angle.knee')} ${a.kneeFlexDeg.toFixed(0)}° · ${t(lang, 'angle.elbow')} ${a.elbowFlexDeg.toFixed(0)}°`,
+      angles: `${t(lang, 'angle.trunk')} ${deg(sol.trunkDeg)} · ${t(lang, 'angle.hip')} ${deg(a.hipFlexDeg)} · ${t(lang, 'angle.knee')} ${deg(a.kneeFlexDeg)} · ${t(lang, 'angle.elbow')} ${deg(a.elbowFlexDeg)}`,
     };
   }),
 );

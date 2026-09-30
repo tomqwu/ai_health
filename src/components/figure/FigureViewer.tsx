@@ -13,8 +13,13 @@ interface Props {
   fallbackImages: string[];
 }
 
-type Status = 'loading' | 'ready' | 'unavailable';
+type Status = 'loading' | 'ready' | 'unavailable' | 'error';
 type Arrow = ReturnType<FigureScene['arrow']>;
+
+function hasWebgl(): boolean {
+  const probe = document.createElement('canvas');
+  return Boolean(probe.getContext('webgl2') ?? probe.getContext('webgl'));
+}
 
 const PLAY_ORDER = [0, 1, 2, 0];
 const SEGMENT_MS = 1200;
@@ -31,9 +36,22 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
 
   useEffect(() => {
     let cancelled = false;
-    let cleanup = () => {};
+    let disposed = false;
+    let scene: FigureScene | undefined;
+    let controls: { dispose(): void } | undefined;
+    // Idempotent: called on unmount and from the error paths, so the scene is disposed exactly once.
+    const cleanup = () => {
+      if (disposed) return;
+      disposed = true;
+      controls?.dispose();
+      scene?.dispose();
+    };
     (async () => {
       try {
+        if (!hasWebgl()) {
+          if (!cancelled) setStatus('unavailable');
+          return;
+        }
         const canvas = canvasRef.current!;
         const width = canvas.clientWidth || 600;
         const height = Math.round((width * 4) / 3);
@@ -41,37 +59,37 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
           import('../../lib/figure/scene3d/figureScene'),
           import('three/addons/controls/OrbitControls.js'),
         ]);
-        const scene = await mountFigure(canvas, { width, height, modelUrl, spec, pixelRatio: Math.min(window.devicePixelRatio, 2) });
+        scene = await mountFigure(canvas, { width, height, modelUrl, spec, pixelRatio: Math.min(window.devicePixelRatio, 2) });
         if (cancelled) {
-          scene.dispose();
+          cleanup();
           return;
         }
-        const controls = new OrbitControls(scene.stage.camera, canvas);
-        const [tx, ty, tz] = scene.view.targetCm;
-        controls.target.set(tx / 100, ty / 100, tz / 100);
-        controls.enablePan = false;
-        controls.minDistance = 1.5;
-        controls.maxDistance = 9;
-        controls.update();
-        controls.saveState();
-        controls.addEventListener('change', () => {
-          scene.render();
+        const mounted = scene;
+        const orbit = new OrbitControls(mounted.stage.camera, canvas);
+        controls = orbit;
+        const [tx, ty, tz] = mounted.view.targetCm;
+        orbit.target.set(tx / 100, ty / 100, tz / 100);
+        orbit.enablePan = false;
+        orbit.minDistance = 1.5;
+        orbit.maxDistance = 9;
+        orbit.update();
+        orbit.saveState();
+        orbit.addEventListener('change', () => {
+          mounted.render();
           setArrow(null);
         });
         resetRef.current = () => {
-          controls.reset();
-          scene.render();
+          orbit.reset();
+          mounted.render();
         };
-        sceneRef.current = scene;
-        cleanup = () => {
-          controls.dispose();
-          scene.dispose();
-        };
+        sceneRef.current = mounted;
         setSize([width, height]);
         setStatus('ready');
       } catch (err) {
-        console.warn('3D figure unavailable:', err);
-        if (!cancelled) setStatus('unavailable');
+        console.error('3D figure failed to load:', err);
+        sceneRef.current = null;
+        cleanup();
+        if (!cancelled) setStatus('error');
       }
     })();
     return () => {
@@ -109,10 +127,10 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
   const labels = spec.frames.map((f) => f.label[lang]);
   const paths = arrow ? arrowPaths(arrow.from, arrow.to) : null;
 
-  if (status === 'unavailable') {
+  if (status === 'unavailable' || status === 'error') {
     return (
       <div class="figure-viewer" data-figure-status={status}>
-        <p role="status">{t(lang, 'figure.noWebgl')}</p>
+        <p role="status">{t(lang, status === 'error' ? 'figure.loadError' : 'figure.noWebgl')}</p>
         <div class="figure-fallback-grid">
           {fallbackImages.map((src, i) => (
             <figure>
