@@ -16,11 +16,12 @@ const rows = STATURES.flatMap((statureCm) =>
   SMITH_SQUAT.frames.map((frame) => {
     const { solution: sol, findings } = checkFigureFrame(sk, SMITH_SQUAT, frame, { statureCm, smith: ILLUSTRATIVE_SMITH });
     const a = jointAngles(sk, sol.world, 'l');
+    // The elbow shows its bend magnitude, which is what validateSmithSquat checks (see the note under the table).
     return {
       statureCm,
       label: frame.label[lang],
       findings,
-      angles: `${t(lang, 'angle.trunk')} ${deg(sol.trunkDeg)} · ${t(lang, 'angle.hip')} ${deg(a.hipFlexDeg)} · ${t(lang, 'angle.knee')} ${deg(a.kneeFlexDeg)} · ${t(lang, 'angle.elbow')} ${deg(a.elbowFlexDeg)}`,
+      angles: `${t(lang, 'angle.trunk')} ${deg(sol.trunkDeg)} · ${t(lang, 'angle.hip')} ${deg(a.hipFlexDeg)} · ${t(lang, 'angle.knee')} ${deg(a.kneeFlexDeg)} · ${t(lang, 'angle.elbow')}* ${deg(Math.abs(a.elbowFlexDeg))}`,
     };
   }),
 );
@@ -51,3 +52,4 @@ const rows = STATURES.flatMap((statureCm) =>
   </tbody>
 </table>
 </div>
+<p class="spike-checks-note">{t(lang, 'spike.check.elbowNote')}</p>
