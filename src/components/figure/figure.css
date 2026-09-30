@@ -21,3 +21,6 @@
 .spike-checks .fail { color: var(--danger); font-weight: 600; }
 .spike-checks-note { color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
 @media (max-width: 480px) { .spike-checks { font-size: 0.8rem; } }
+.figure-badge { display: inline-block; margin: 0 0 8px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); font-size: 0.875rem; }
+.figure-height { display: inline-flex; align-items: center; gap: 6px; }
+.figure-height select { font: inherit; padding: 4px 8px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--text); }

@@ -1,18 +1,24 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { arrowPaths } from '../../lib/figure/arrow';
-import { PLAY_ORDER } from '../../lib/figure/pose/playOrder';
-import type { SmithSquatSpec } from '../../lib/figure/pose/smithSquat';
+import type { FigureMeta } from '../../lib/figure/figures';
 import type { FigureScene } from '../../lib/figure/scene3d/figureScene';
-import { stageHeightFor } from '../../lib/figure/scene3d/stage';
+import { stageHeightFor } from '../../lib/figure/scene3d/layout';
 import { t } from '../../lib/i18n';
 import type { Locale } from '../../lib/i18n/locales';
 import './figure.css';
 
+/** The stature figures are drawn at when none is given (spec §7.1: a typical adult height). */
+const TYPICAL_STATURE_CM = 175;
+
 interface Props {
   lang: Locale;
   modelUrl: string;
-  spec: SmithSquatSpec;
+  figure: FigureMeta;
   fallbackImages: string[];
+  /** The viewer's stature (the profile's, M4); omitted = typical height. */
+  statureCm?: number;
+  /** Offer a height picker with these statures (the dev figure pages). */
+  statureChoices?: readonly number[];
 }
 
 type Status = 'loading' | 'ready' | 'unavailable' | 'error';
@@ -28,7 +34,12 @@ function hasWebgl(): boolean {
 
 const SEGMENT_MS = 1200;
 
-export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: Props) {
+/**
+ * The interactive 3D figure (spec §8.4): any figure in the library, posed at a stature, animated between
+ * its frames and orbitable. three.js, the solver and the figure data load only when the island mounts;
+ * without WebGL, or if the model fails, it shows the pre-rendered frames.
+ */
+export default function FigureViewer({ lang, modelUrl, figure, fallbackImages, statureCm, statureChoices }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // The frame whose arrow is on screen, or null when none is (orbiting, playing). Lets a resize re-project it.
@@ -40,6 +51,8 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [arrow, setArrow] = useState<Arrow>(null);
+  const [stature, setStature] = useState(statureCm ?? TYPICAL_STATURE_CM);
+  const [playOrder, setPlayOrder] = useState<readonly number[]>([0, 1, 2, 0]);
 
   const showArrow = (index: number | null) => {
     arrowFrameRef.current = index;
@@ -55,6 +68,7 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
     let orbitFrame = 0; // pending requestAnimationFrame id for an orbit re-render, 0 if none
     let resizeFrame = 0; // pending requestAnimationFrame id for a resize, 0 if none
     let observer: ResizeObserver | undefined;
+    setStatus('loading');
     // Disposal tracks the scene, not the effect: a no-op until mountFigure has produced a scene,
     // then idempotent, so the scene (and controls, if created) are released exactly once.
     const disposeScene = () => {
@@ -75,13 +89,16 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
         const canvas = canvasRef.current!;
         const width = canvas.clientWidth || 600;
         const height = stageHeightFor(width);
-        const [{ mountFigure }, { OrbitControls }] = await Promise.all([
+        const [{ mountFigure }, { FIGURES }, { OrbitControls }] = await Promise.all([
           import('../../lib/figure/scene3d/figureScene'),
+          import('../../lib/figure/fixtures'),
           import('three/addons/controls/OrbitControls.js'),
         ]);
-        scene = await mountFigure(canvas, { width, height, modelUrl, spec, pixelRatio: Math.min(window.devicePixelRatio, 2) });
+        const model = FIGURES[figure.id];
+        if (!model) throw new Error(`Unknown figure: ${figure.id}`);
+        scene = await mountFigure(canvas, { width, height, modelUrl, figure: model, statureCm: stature, pixelRatio: Math.min(window.devicePixelRatio, 2) });
         if (cancelled) {
-          disposeScene(); // unmounted while mountFigure was loading
+          disposeScene(); // unmounted (or the height changed) while mountFigure was loading
           return;
         }
         const mounted = scene;
@@ -112,6 +129,7 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
           mounted.render();
         };
         sceneRef.current = mounted;
+        setPlayOrder(model.playOrder);
         setSize([width, height]);
         setStatus('ready');
         // Follow the stage's width (the canvas is 4:3 via CSS): resize the renderer and camera, re-render,
@@ -158,7 +176,7 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
       sceneRef.current = null;
       disposeScene(); // no-op while still loading; the async path disposes once mountFigure resolves
     };
-  }, []);
+  }, [figure.id, stature]);
 
   useEffect(() => {
     const scene = sceneRef.current;
@@ -179,28 +197,31 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
     const tick = (now: number) => {
       start ??= now;
       const total = Math.max(0, (now - start) / SEGMENT_MS);
-      const seg = Math.floor(total) % (PLAY_ORDER.length - 1);
+      const seg = Math.floor(total) % (playOrder.length - 1);
       const eased = 0.5 - Math.cos(Math.PI * (total - Math.floor(total))) / 2;
-      scene.showBetween(PLAY_ORDER[seg]!, PLAY_ORDER[seg + 1]!, eased);
+      scene.showBetween(playOrder[seg]!, playOrder[seg + 1]!, eased);
       scene.render();
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing]);
+  }, [playing, playOrder]);
 
-  const labels = spec.frames.map((f) => f.label[lang]);
-  const canvasLabel = `${spec.name[lang]} — ${playing ? t(lang, 'figure.animating') : labels[frame]}`;
+  const labels = figure.frames.map((f) => f.label[lang]);
+  const canvasLabel = `${figure.name[lang]} — ${playing ? t(lang, 'figure.animating') : labels[frame]}`;
   const paths = arrow ? arrowPaths(arrow.from, arrow.to) : null;
+  const heightNote = stature === TYPICAL_STATURE_CM ? t(lang, 'figure.typicalHeight') : t(lang, 'figure.shownAt').replace('{height}', String(stature));
+  const bothSides = figure.unilateral && <p class="figure-badge">{t(lang, 'figure.bothSides')}</p>;
 
   if (status === 'unavailable' || status === 'error') {
     return (
       <div class="figure-viewer" data-figure-status={status}>
         <p role="status">{t(lang, status === 'error' ? 'figure.loadError' : 'figure.noWebgl')}</p>
+        {bothSides}
         <div class="figure-fallback-grid">
           {fallbackImages.map((src, i) => (
             <figure>
-              <img src={src} alt={`${spec.name[lang]} — ${labels[i]}`} width={900} height={1200} loading="lazy" />
+              <img src={src} alt={`${figure.name[lang]} — ${labels[i]}`} width={900} height={1200} loading="lazy" />
               <figcaption>{labels[i]}</figcaption>
             </figure>
           ))}
@@ -211,6 +232,7 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
 
   return (
     <div class="figure-viewer" data-figure-status={status}>
+      {bothSides}
       <div class="figure-stage" ref={stageRef}>
         <canvas ref={canvasRef} class="figure-canvas" role="img" aria-label={canvasLabel} />
         {paths && (
@@ -220,7 +242,7 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
           </svg>
         )}
       </div>
-      <div class="figure-controls" role="group" aria-label={spec.name[lang]}>
+      <div class="figure-controls" role="group" aria-label={figure.name[lang]}>
         {labels.map((label, i) => (
           <button
             type="button"
@@ -247,10 +269,27 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
         >
           {t(lang, 'figure.resetView')}
         </button>
+        {statureChoices && (
+          <label class="figure-height">
+            {t(lang, 'figure.height')}{' '}
+            <select
+              value={String(stature)}
+              disabled={status === 'loading'}
+              onChange={(e) => {
+                setPlaying(false);
+                setStature(Number((e.target as HTMLSelectElement).value));
+              }}
+            >
+              {statureChoices.map((cm) => (
+                <option value={String(cm)}>{`${cm} cm`}</option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       {status === 'loading' && <p role="status">{t(lang, 'figure.loading')}</p>}
       <p class="figure-note">
-        {t(lang, 'figure.dragHint')} · {t(lang, 'figure.illustrative')}
+        {t(lang, 'figure.dragHint')} · {t(lang, 'figure.illustrative')} · {heightNote}
       </p>
     </div>
   );
