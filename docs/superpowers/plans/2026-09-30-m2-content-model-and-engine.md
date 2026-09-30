@@ -2951,7 +2951,7 @@ export function ownedCapabilities(profile: Profile, catalog: Catalog): Set<strin
 
 /** Catalog equipment providing any of `capabilities`, sorted by id. */
 export function providersOf(catalog: Catalog, capabilities: readonly string[]) {
-  return [...catalog.equipment.values()].filter((e) => e.capabilities.some((c) => capabilities.includes(c))).sort((a, b) => a.id.localeCompare(b.id));
+  return [...catalog.equipment.values()].filter((e) => e.capabilities.some((c) => capabilities.includes(c))).sort((a, b) => compareIds(a.id, b.id));
 }
 ```
 
@@ -4701,7 +4701,7 @@ export function rankCandidates(candidates: readonly Exercise[], ctx: RankContext
       }
       return { exercise, score, why };
     })
-    .sort((a, b) => b.score - a.score || a.exercise.id.localeCompare(b.exercise.id));
+    .sort((a, b) => b.score - a.score || compareIds(a.exercise.id, b.exercise.id));
 }
 
 /** Safety notes for a pick that loads a joint the user marked as sensitive (spec §7.1, §12). */
@@ -5235,3 +5235,5 @@ Close the milestone (`gh api -X PATCH repos/tomqwu/ai_health/milestones/$M -f st
 **Type consistency.** `ProbeResult` (`topCm`, `barCentersCm`, `rom`, `posing`; Tasks 8–10, 12), `Feasibility` (`status`, `reasons`, `notes`; Tasks 8, 10, 12, 14), `Week.assumptions` (Tasks 11, 12, 14), `GeometryParam` (Tasks 1, 4, 8), `SlotPlan.supersetWith` as a template index (Tasks 11–13), `EngineOptions.probes` (Tasks 10, 12), `Message`/`MessageKey` (Tasks 2, 6, 8–12) and `ParamValue` (Tasks 1, 6, 8) are used with the same names and shapes throughout.
 
 **Dry run (2026-09-30).** Every code block of this plan was extracted into a scratch copy of `docs/m2-plan` (rebased on `main` after #45), task by task and as a whole. The full suite passed (34 files, 386 tests: M2 adds 16 files and 185 tests), `eslint` and `astro check` reported 0 problems, `astro build` completed with only the two expected `templates` warnings, and the three Task 5 "rejects bad content" builds failed with the expected messages.
+
+> **Execution note (Task 12 review):** tie-breaks use `compareIds` from `src/lib/engine/order.ts` (code-unit order), not `localeCompare`, whose order depends on the runtime locale. `params.ts` and `week.ts` import it.

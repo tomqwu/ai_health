@@ -2,6 +2,7 @@ import type { Catalog } from '../content/catalog';
 import { type ParamValue, paramValueMatches } from '../content/params';
 import type { GeometryParam } from '../content/vocab';
 import type { Profile } from '../profile/schema';
+import { compareIds } from './order';
 
 /**
  * The value the geometry checks use for parameter `name` (D12): the user's own measurement when it is stored
@@ -40,5 +41,5 @@ export function ownedCapabilities(profile: Profile, catalog: Catalog): Set<strin
 
 /** Catalog equipment providing any of `capabilities`, sorted by id. */
 export function providersOf(catalog: Catalog, capabilities: readonly string[]) {
-  return [...catalog.equipment.values()].filter((e) => e.capabilities.some((c) => capabilities.includes(c))).sort((a, b) => a.id.localeCompare(b.id));
+  return [...catalog.equipment.values()].filter((e) => e.capabilities.some((c) => capabilities.includes(c))).sort((a, b) => compareIds(a.id, b.id));
 }
