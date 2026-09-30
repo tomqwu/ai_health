@@ -53,9 +53,10 @@ visitor's browser.
 | D6 | Stack | Astro + TypeScript, Preact islands, GitHub Actions → Pages | Static content pages + small interactive tools; build-time content validation; built-in i18n routing |
 | D7 | PDF | Print-optimized route + browser "Save as PDF" | Native CJK font support, crisp output, zero PDF dependencies |
 | D8 | Project tracking | GitHub milestones, labels, issues; one PR per issue | Owner request |
-| D9 | Setup positions | Words on public pages ("chest height"); approximate hole numbers only in personal plans, computed from the user's own measurements | Practical beside the machine without inventing settings |
+| D9 | Setup positions | Words everywhere ("chest height"); no hole numbers in v1 (see D12) | Practical beside the machine without inventing settings |
 | D10 | Cable loads | Shown as the numbers printed on the stack; the cable ratio is optional and never guessed | Plans use RIR, so the ratio isn't needed |
 | D11 | Movement arrows on figures | Composited into the pre-rendered WebP frames, not served as overlay JSON; the interactive viewer still draws them as an SVG overlay. Render caching by content hash is deferred to M3 | Arrows carry no text, so one render still serves both languages; fewer moving parts for static pages |
+| D12 | Equipment measurements (2026-09-30) | Never required. Plans and guides describe general movements and setups for each device type; geometry checks use typical (illustrative) dimensions, and a user can optionally enter their own. Hole numbers (§7.5) are dropped from v1 | Owner: "I just need general moves for these devices" |
 
 ## 4. Architecture
 
@@ -298,12 +299,13 @@ Checks, in order:
    against the profile's measurements: ceiling clearance (head, hands, implements + margin), bar travel versus
    the lower and upper stops, bench fit inside the rack, and the joint range-of-motion limits.
 
-Unknown inputs never pass silently:
+Unknown inputs use typical values instead of blocking the plan (D12):
 
-- Unknown stature → every geometry check returns `needs-info` (the wizard asks for stature first).
-- Unknown ceiling height → assume a 210 cm ceiling; exercises whose envelope plus margin exceeds that are
-  `needs-info`, and the rest pass.
-- An unmeasured equipment parameter → only the checks that depend on it return `needs-info`.
+- Unknown stature → pose at a typical adult stature (175 cm); figures and checks say "typical height".
+- Unknown ceiling height → assume a 240 cm ceiling. Exercises whose envelope plus margin exceeds it stay
+  plannable but carry a localized "check overhead clearance" note.
+- An unmeasured equipment parameter → the equipment's `illustrativeDefaults` are used. `needs-info` is
+  reserved for missing inputs that cannot be defaulted (none in v1).
 
 `limitations` never change feasibility. They affect ranking and add safety notes.
 
@@ -337,9 +339,10 @@ then trims sets on priority-2 slots.
 `shortSession(day)` keeps up to three priority-1 slots at 2 sets each with RIR ≥ 3. It is used for poor sleep,
 little time or incomplete recovery.
 
-### 7.5 Personal setup numbers
+### 7.5 Personal setup numbers — deferred (D12)
 
-When a station's `holeNumbering` is measured, the planner converts each exercise's descriptive setup heights into
+Not in v1: setups are described in words only. Kept for a later version, where it applies only if the user
+enters measurements. When a station's `holeNumbering` is measured, the planner converts each exercise's descriptive setup heights into
 the nearest hole number for the user's stature. For example, `pulley: chest` becomes chest height from the pose
 layer's standing skeleton, then the nearest hole, shown as "≈ hole 17 (chest height)". The same applies to J-hooks
 and safety catches. Hole numbers appear only in personal views and the PDF. If the ideal height is outside the
@@ -429,8 +432,8 @@ Every route exists under `/en/` and `/zh/`. The base path is `/ai_health/`.
 
 ### 9.1 Planner flow
 
-1. **Wizard** (first visit, editable later): stature, ceiling height, owned equipment and attachments, equipment
-   measurements (each may be "not measured yet"), limitations, session length, template.
+1. **Wizard** (first visit, editable later): owned equipment and attachments, session length, template, and
+   optional stature, ceiling height and limitations. No equipment measurements are asked for (D12).
 2. **Week view:** a compact overview, then detailed days. Each pick shows why it was chosen and has a ⇄ swap that
    lists only feasible alternatives. Also shown: excluded exercises with reasons, the time estimate and any
    over-budget warning.
@@ -544,9 +547,8 @@ and M1. Later plans are written after the M1 gate, because the spike may refine 
 
 1. **Photos** of the home setup (received 2026-09-29 in a private session; used as geometry reference only).
    Still useful: a side view of the Smith rails and a view of the bench inside the rack.
-2. **Measurements:** the parameters listed in §5.1 (starting with the hole numbering, lowest Smith bar height,
-   pull-up bar height and ceiling above it, inner depth and width) plus bench seat height, backrest length and
-   available backrest angles. Any can be marked "not measured yet".
+2. ~~Measurements~~ — not needed (D12, 2026-09-30): the site teaches general movements for each device type,
+   using typical dimensions.
 3. **Screening answers** (chat only) before M5 program content is finalized.
 
 Answered 2026-09-29: small tools, roller hold-down uses (all three) and spotter arms for free-barbell work.
