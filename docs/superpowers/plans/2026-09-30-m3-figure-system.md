@@ -72,7 +72,7 @@ The owner pre-approved this plan; where the spec leaves a choice open, the contr
 3. **Issue #47 (elbow twist), default option (b).** `solvePose` always rolls the upper arm and the thigh with `twoBoneIK`'s `bendSide`, so every new figure bends elbows and knees on their hinges and gets the signed elbow and knee limits. The M1 Smith squat keeps option (a), its magnitude-only elbow check, so its approved look does not change. Option (c), twist bones in the human model, is taken only if the owner's look review (Task 15) rejects the sleeve fold at the shoulder; it then becomes a follow-up issue, since it needs Blender on the owner's machine. Option (a) for the new figures is one flag away: `ArmGoal.hinge: false` lets the arm swing the shortest way (no `bendSide`) and checks that elbow by magnitude only, so the controller can show the owner the difference.
 4. **Pose model.** Points are `PointRef`s: an anchor (`floor`, an equipment anchor such as `bench.hinge` or `pullup.bar`, or a posed-body anchor such as `body.shoulder_l`), plus a fixed offset in cm, plus an offset written for 175 cm that scales with stature, optionally measured from the floor. A pose built only from body offsets is the same pose at every stature; fixed equipment heights are where statures differ, which is exactly what the sweep tests. Hands on a bar are oriented from the handle axis and the forearm: the fingers point along the forearm projected across the bar, so the wrist stays straight, and the authored palm direction only picks which side the palm faces (overhand or underhand); feet from toe and sole directions; body contacts are declared per frame. Body capsules use typical segment half-thicknesses at 175 cm (pelvis 10, abdomen 10.5, chest 11.5, head 9, upper arm 4.5, forearm 3.2, hand 1.4, thigh 7.5, shank 5.2, foot 2.5 cm); trunk capsules sit a little in front of the spine and limb capsules stop short of the narrow distal joints.
 5. **Validator values.** 1 cm for every contact (grips, feet, declared body contacts; a `loose` contact such as thighs on a bench seat is only excused from the overlap warning). Wrists: the hand's direction against its rest direction, both measured in the forearm's frame, within 30° when holding something, 25° when pressing (`seat: 'palm'`) and 85° when flat on a surface (a push-up or catch position); a bar grip keeps the wrist straight by construction, bending only as far as the forearm leans along the bar. The authored spine stays within flexion −10…45°, side bend ±20° and twist ±30°, the neck within flexion −30…45° and turn ±60°. 2 cm of air under a hanging body. Held implements may touch the floor or equipment by at most 0.5 cm; against the body (hands and forearms excepted) more than 2 cm is a warning and more than 4 cm an error, unless the frame declares the touch. A body part sinking more than 2 cm into fixed equipment it does not rest on is a warning, and the sweep treats any warning as a failure. The Smith bar must stay above the safety catches it is drawn with (spec §12). The hip now reads 0 when standing (as the ankle does), is measured about its hinge only (spreading the legs does not read as extension), and may extend to −20° (typical active hip extension is about 10–20°); the Smith squat shares this limit, and its results do not change.
-6. **In-between poses** (the viewer's Play, and the sweep) turn directions along the shorter arc, swing a hand placed from a shoulder around it, and settle the body back onto the first measured contact both keyframes declare, with a secant search of at most 5 steps to 0.05 cm. Play poses without validating (`pose(…, { validate: false })`), and each figure's scene is built once per set of equipment dimensions; an in-between pose costs about 1–7 ms locally, and the sweep fails any figure that takes more than 25 ms. Consecutive keyframes must measure each point from the same anchor (enforced).
+6. **In-between poses** (the viewer's Play, and the sweep) turn directions along the shorter arc, swing a hand placed from a shoulder around it, and settle the body back onto the first measured contact both keyframes declare, with a secant search of at most 5 steps to 0.05 cm; a part lying `along` a surface (the side plank's forearm) settles on the mean of its two end gaps, which is smooth, so the search converges (the validator still checks both ends). Play poses without validating (`pose(…, { validate: false })`), and each figure's scene is built once per set of equipment dimensions. Play's cost is budgeted in solver runs, not milliseconds, so the test does not depend on the runner: every posed figure reports `solves`, and the sweep fails an unvalidated in-between pose that needs more than 5 (a search that runs out of steps needs 8; in the dry run no figure needed more than 4, about 0.5–2 ms locally). A loose 100 ms wall-clock bound stays as a sanity check. Consecutive keyframes must measure each point from the same anchor (enforced).
 7. **The M1 Smith squat is wrapped, not rewritten.** `smithSquatFigure` adapts its solver, validator, arrow and catches to the common `FigureModel`; its scene stays the bare Smith machine, so its pre-rendered frames do not change (in the dry run one frame was byte-identical and the other two differed only by edge noise of at most a few colour levels). `SMITH_SQUAT`, `checkFigureFrame` and `validateSmithSquat` keep their APIs.
 8. **Generic equipment.** The Smith machine + functional trainer gains a pulley carriage on each front upright (settings in words: high 195, chest 125, low 22 cm), a weight stack beside each side, a pull-up bar across the front (210 cm, the content's typical value), and optional J-hooks, spotter arms, roller hold-down (pad top 30 cm, on a front upright) and row footplate (at a column's base). The bench, free weights, accessories, cardio machines and attachments are built from typical proportions. All are illustrative (D12). Each model states the typical values it draws (`drawsWith`), and the catalog fails the build if content's `illustrativeDefaults` disagree.
 9. **Viewer and pages.** `FigureViewer` takes serializable figure metadata, loads three.js, the solver and the figure only when it mounts, poses at a `statureCm` prop (175 cm, "typical height", until M4 passes the profile's), offers a height picker on review pages, and shows the "both sides" badge. M3 replaces the M1 spike page with unlisted review pages, `/[lang]/dev/figures/` (every figure and equipment still) and `/[lang]/dev/figures/[id]/` (viewer, frames, sweep table). The public exercise pages of spec §9 are built in M5 from these components.
@@ -3362,7 +3362,7 @@ When CI is green: `gh pr merge --squash --delete-branch && git checkout main && 
 ---
 ### Task 6: Figure models, sweep and a viewer for any figure
 
-`FigureModel` is the single interface the renderer, the viewer, the engine and the sweep use (controller decision 7): frames with labels and cues, a play order, the fixed scene and camera at a stature, and `pose(sk, frame | in-between, ctx)` returning bone rotations, root, moving props, the movement arrow, findings, the envelope and the Smith bar height. `poseFigure` wraps a pose spec, settling in-between poses onto their contacts with a short secant search (at most 5 solves); `pose(…, { validate: false })` skips the validators and is what Play uses; `smithSquatFigure` wraps the M1 squat unchanged. `interpolatePoseFrame` blends two keyframes (controller decision 6). The first library figure, the dumbbell curl, proves the path end to end. The figure sweep (spec §14) runs every figure × keyframe and in-between pose × five statures on the real rig in `npm test`.
+`FigureModel` is the single interface the renderer, the viewer, the engine and the sweep use (controller decision 7): frames with labels and cues, a play order, the fixed scene and camera at a stature, and `pose(sk, frame | in-between, ctx)` returning bone rotations, root, moving props, the movement arrow, findings, the envelope and the Smith bar height. `poseFigure` wraps a pose spec, settling in-between poses onto their contacts with a short secant search (at most 5 steps; a part lying `along` a surface settles on the mean of its end gaps, so the search converges); every posed figure reports how many times it ran the solver (`solves`); `pose(…, { validate: false })` skips the validators and is what Play uses; `smithSquatFigure` wraps the M1 squat unchanged. `interpolatePoseFrame` blends two keyframes (controller decision 6). The first library figure, the dumbbell curl, proves the path end to end. The figure sweep (spec §14) runs every figure × keyframe and in-between pose × five statures on the real rig in `npm test`.
 
 The 3D layer and the island move to `FigureModel`: `mountFigure` takes a figure and a stature, draws fixed equipment once and moves the props per pose; `mountEquipment` draws one model. `FigureViewer` takes the figure's metadata (so the page stays small and serializable), loads the figure registry with three.js, poses at `statureCm` (175, "typical height"), can offer a height picker, and shows the "both sides" badge. The M1 spike page and render harness are adapted to the new API; Tasks 7 and 8 replace them.
 
@@ -3376,7 +3376,7 @@ The 3D layer and the island move to `FigureModel`: `mountFigure` takes a figure 
 - Consumes: Tasks 1–5; M1 `checkFigureFrame`, `interpolateFrame`, `barArrow`, `PLAY_ORDER`, `carriedBarCenter`, `REAL_SKELETON`, `loadHuman`, `applyPose`, stage functions.
 - Produces:
   - `interpolate.ts`: `slerpDir(a, b, t)`, `interpolatePoseFrame(a, b, t): PoseFrame`.
-  - `figures.ts`: `FigureContext { statureCm; params?; ceilingCm?; clearanceMarginCm? }`, `FrameRef = number | { from; to; t }`, `PosedFigure { frameId; scaleFactor; local; rootPosition; world; props; arrow; findings; topCm; smithBarCm? }`, `OrbitSpec`, `PoseOptions { validate?: boolean }` (false: no findings, no arrow, `topCm` NaN), `FigureModel { id; name; frames; playOrder; unilateral; expectedFailures; scene(sk, ctx); camera(ctx); pose(sk, frame, ctx, opts?) }`, `poseFigure(spec)`, `smithSquatFigure(spec)`, `FigureMeta`, `figureMeta(f)`.
+  - `figures.ts`: `FigureContext { statureCm; params?; ceilingCm?; clearanceMarginCm? }`, `FrameRef = number | { from; to; t }`, `PosedFigure { frameId; scaleFactor; local; rootPosition; world; props; arrow; findings; topCm; smithBarCm?; solves }`, `OrbitSpec`, `PoseOptions { validate?: boolean }` (false: no findings, no arrow, `topCm` NaN), `SETTLE_TOLERANCE_CM` (0.05), `SETTLE_STEPS` (5), `PosedFigure.solves`, `FigureModel { id; name; frames; playOrder; unilateral; expectedFailures; scene(sk, ctx); camera(ctx); pose(sk, frame, ctx, opts?) }`, `poseFigure(spec)`, `smithSquatFigure(spec)`, `FigureMeta`, `figureMeta(f)`.
   - `fixtures/index.ts`: `POSE_SPECS: readonly PoseFigureSpec[]`, `FIGURES: Readonly<Record<string, FigureModel>>` (was `Record<string, SmithSquatSpec>`; `Object.keys(FIGURES)` is unchanged for the catalog).
   - `scene3d/figureScene.ts`: `mountFigure(canvas, { width, height, modelUrl, figure, statureCm?, pixelRatio? }): Promise<FigureScene>` (`showFrame`, `showBetween`, `arrow`, `render`, `resize`, `dispose`, `stage`, `view`), `mountEquipment(canvas, { width, height, model, pixelRatio? })`, `DEFAULT_STATURE_CM`.
   - `scene3d/layout.ts`: `stageHeightFor(width)` (re-exported from `stage.ts`), so the island's first load does not pull in three.js.
@@ -3509,6 +3509,8 @@ describe('poseFigure', () => {
     const checked = fig.pose(sk, { from: 0, to: 1, t: 0.5 }, { statureCm: 175 });
     expect(drawn.local).toEqual(checked.local);
     expect([drawn.findings, drawn.arrow, Number.isNaN(drawn.topCm)]).toEqual([[], null, true]);
+    // Standing frames declare no body contact, so nothing is settled: one solve, plus one for the arrow's target.
+    expect([drawn.solves, fig.pose(sk, 0, { statureCm: 175 }).solves, fig.pose(sk, 1, { statureCm: 175 }).solves]).toEqual([1, 2, 1]);
   });
   it('builds the fixed scene once per set of equipment dimensions', () => {
     expect(fig.scene(sk, { statureCm: 175 })).toBe(fig.scene(sk, { statureCm: 190 }));
@@ -3517,7 +3519,12 @@ describe('poseFigure', () => {
     const lying = (hipsY: number, pitchDeg: number) =>
       stand({ trunk: { hips: { bodyCm: [0, hipsY, 0] }, pitchDeg }, contacts: [{ part: 'chest', on: 'floor' }], legs: { l: { ...STAND.legs.l, contact: 'none', to: { from: 'body.hips', bodyCm: [10, 0, 80] } }, r: { ...STAND.legs.r, contact: 'none', to: { from: 'body.hips', bodyCm: [-10, 0, 80] } } } });
     const f = poseFigure({ ...spec, frames: [{ ...lying(12, -90), id: 'a', arrow: undefined }, lying(30, -120), lying(12, -90)] });
-    for (const t of [0.25, 0.5, 0.75]) expect(f.pose(sk, { from: 0, to: 1, t }, { statureCm: 175 }).findings.filter((x) => x.check === 'anchor')).toEqual([]);
+    for (const t of [0.25, 0.5, 0.75]) {
+      const posed = f.pose(sk, { from: 0, to: 1, t }, { statureCm: 175 });
+      expect(posed.findings.filter((x) => x.check === 'anchor')).toEqual([]);
+      // Converged well before the search runs out (1 + 1 + SETTLE_STEPS + 1 = 8 solves).
+      expect(posed.solves).toBeLessThanOrEqual(5);
+    }
   });
 });
 
@@ -3572,10 +3579,14 @@ import { REAL_SKELETON } from '../../src/lib/figure/pose/realSkeleton';
 export const SWEEP_STATURES = [150, 165, 175, 190, 200] as const;
 const BETWEEN = [0.25, 0.5, 0.75];
 /**
- * Play poses a figure on every animation frame. Locally (a fast laptop) an in-between pose takes 1–7 ms;
- * this budget leaves room for slower CI runners and still catches a solver that got several times slower.
+ * Play poses a figure on every animation frame, so its cost is budgeted in solver runs, which do not
+ * depend on the machine: settling an in-between pose may take two solves plus two secant steps, then
+ * the pose itself. A search that runs out of steps (1 + 1 + SETTLE_STEPS + 1 = 8) has not converged.
+ * In the dry run the most any figure needed was 4. Each solve takes well under 1 ms on a laptop.
  */
-const PLAY_POSE_BUDGET_MS = 25;
+const PLAY_MAX_SOLVES = 5;
+/** A loose wall-clock sanity bound (ms per unvalidated in-between pose), far above any machine's cost. */
+const PLAY_SANITY_MS = 100;
 
 describe.each(Object.values(FIGURES).map((f) => [f.id, f] as const))('figure %s', (_id, fig) => {
   const refs: Array<{ name: string; ref: FrameRef }> = [
@@ -3597,13 +3608,17 @@ describe.each(Object.values(FIGURES).map((f) => [f.id, f] as const))('figure %s'
     },
     30_000,
   );
-  it('poses in-between frames fast enough for Play', () => {
+  it('poses in-between frames cheaply enough for Play', () => {
     const between = (i: number): FrameRef => ({ from: fig.playOrder[i % (fig.playOrder.length - 1)]!, to: fig.playOrder[(i % (fig.playOrder.length - 1)) + 1]!, t: ((i * 7) % 10) / 10 + 0.05 });
-    for (let i = 0; i < 5; i++) fig.pose(REAL_SKELETON, between(i), { statureCm: 175 }, { validate: false });
     const n = 20;
     const start = performance.now();
-    for (let i = 0; i < n; i++) fig.pose(REAL_SKELETON, between(i), { statureCm: 175 }, { validate: false });
-    expect((performance.now() - start) / n).toBeLessThan(PLAY_POSE_BUDGET_MS);
+    for (const statureCm of SWEEP_STATURES) {
+      for (let i = 0; i < n; i++) {
+        const { solves } = fig.pose(REAL_SKELETON, between(i), { statureCm }, { validate: false });
+        expect(solves, `${statureCm} cm, in-between pose ${i}`).toBeLessThanOrEqual(PLAY_MAX_SOLVES);
+      }
+    }
+    expect((performance.now() - start) / (n * SWEEP_STATURES.length)).toBeLessThan(PLAY_SANITY_MS);
   });
 });
 ```
@@ -3745,7 +3760,7 @@ import { buildSmith, catchHeightFor } from './geometry/smith';
 import { smithMovingParts, smithPart } from './geometry/trainer';
 import { barArrow } from './overlay';
 import { checkFigureFrame } from './pose/checkFigureFrame';
-import { bodyCapsules, contactGap, gripPoint } from './pose/body';
+import { bodyCapsules, capsuleGap, gripPoint } from './pose/body';
 import { interpolatePoseFrame } from './pose/interpolate';
 import { PLAY_ORDER } from './pose/playOrder';
 import { type ExpectedFailure, type PoseFigureSpec, type PoseFrame, REFERENCE_STATURE_CM, type TrackPoint } from './pose/poseSpec';
@@ -3792,6 +3807,8 @@ export interface PosedFigure {
   topCm: number;
   /** Smith bar centre height (cm, floor to bar centre), when the frame moves the Smith bar. */
   smithBarCm?: number;
+  /** How many times the solver ran for this pose (settling an in-between pose, the pose, the arrow's target). */
+  solves: number;
 }
 
 export interface OrbitSpec {
@@ -3820,8 +3837,8 @@ export interface FigureModel {
 
 const ARROW_CM = 36;
 /** Settling in-between poses: stop within this gap (cm), after at most this many secant steps. */
-const SETTLE_TOLERANCE_CM = 0.05;
-const SETTLE_STEPS = 5;
+export const SETTLE_TOLERANCE_CM = 0.05;
+export const SETTLE_STEPS = 5;
 
 // ── Generalized pose figures ────────────────────────────────────────────────────
 
@@ -3874,24 +3891,31 @@ export function poseFigure(spec: PoseFigureSpec): FigureModel {
    * on a pad, shoulders on the floor) moves along an arc: settle the in-between pose vertically until its
    * first declared, measured contact touches again. The gap changes almost one for one with the hips'
    * height, so a secant search from "move down by the gap" settles within 0.05 cm in a few solves.
+   * A part lying along a surface (a forearm on the floor) is settled on the mean of its two end gaps:
+   * the validator's larger end gap is V-shaped and never reaches 0 while the part tilts, while the mean
+   * is smooth, so the search converges and both ends stay within the tolerance of the surface.
+   * Returns the settle offset and how many solves it took.
    */
-  const settle = (sk: SkeletonDef, frame: PoseFrame, ctx: FigureContext, built: Built): number => {
+  const settle = (sk: SkeletonDef, frame: PoseFrame, ctx: FigureContext, built: Built): { cm: number; solves: number } => {
     const contact = frame.contacts?.find((c) => !c.loose);
-    if (!contact) return 0;
+    if (!contact) return { cm: 0, solves: 0 };
+    const surface = built.surfaces[contact.on]!;
+    let solves = 0;
     const gap = (d: number) => {
+      solves++;
       const { sol } = solveOne(sk, frame, ctx, built, d);
       const cap = bodyCapsules(sk, sol.world, sol.scaleFactor, sol.k).find((c) => c.part === contact.part)!;
-      return contactGap(cap, built.surfaces[contact.on]!, contact.along);
+      return contact.along ? (capsuleGap({ ...cap, b: cap.a }, surface) + capsuleGap({ ...cap, a: cap.b }, surface)) / 2 : capsuleGap(cap, surface);
     };
     let [d0, g0] = [0, gap(0)];
-    if (Math.abs(g0) < SETTLE_TOLERANCE_CM) return 0;
+    if (Math.abs(g0) < SETTLE_TOLERANCE_CM) return { cm: 0, solves };
     let [d1, g1] = [-g0, gap(-g0)];
     for (let i = 0; i < SETTLE_STEPS && Math.abs(g1) >= SETTLE_TOLERANCE_CM && g1 !== g0; i++) {
       const d2 = Math.max(-40, Math.min(40, d1 - (g1 * (d1 - d0)) / (g1 - g0)));
       [d0, g0] = [d1, g1];
       [d1, g1] = [d2, gap(d2)];
     }
-    return d1;
+    return { cm: d1, solves };
   };
   return {
     id: spec.id,
@@ -3914,14 +3938,17 @@ export function poseFigure(spec: PoseFigureSpec): FigureModel {
       const built = scene(ctx);
       const frame = typeof ref === 'number' ? spec.frames[ref] : interpolatePoseFrame(spec.frames[ref.from]!, spec.frames[ref.to]!, ref.t);
       if (!frame) throw new RangeError(`${spec.id}: no frame ${String(ref)}`);
-      const { sol, props } = solveOne(sk, frame, ctx, built, typeof ref === 'number' ? 0 : settle(sk, frame, ctx, built));
+      const settled = typeof ref === 'number' ? { cm: 0, solves: 0 } : settle(sk, frame, ctx, built);
+      const { sol, props } = solveOne(sk, frame, ctx, built, settled.cm);
+      let solves = settled.solves + 1;
       const base = { frameId: frame.id, scaleFactor: sol.scaleFactor, local: sol.local, rootPosition: sol.rootPosition, world: sol.world, props, ...(sol.smithBar && { smithBarCm: sol.smithBar[1] }) };
-      if (opts.validate === false) return { ...base, arrow: null, findings: [], topCm: Number.NaN };
+      if (opts.validate === false) return { ...base, arrow: null, findings: [], topCm: Number.NaN, solves };
       const findings = validatePose(sk, frame, sol, props, { scene: built, params: paramsOf(ctx), ceilingCm: ctx.ceilingCm, clearanceMarginCm: ctx.clearanceMarginCm });
       let arrow: PosedFigure['arrow'] = null;
       if (frame.arrow) {
         const next = spec.frames[frame.arrow.toward]!;
         const there = solveOne(sk, next, ctx, built);
+        solves++;
         const from = track(frame.arrow.track, frame, sol);
         const to = track(frame.arrow.track, next, there.sol);
         if (distance(from, to) > 2) {
@@ -3929,7 +3956,7 @@ export function poseFigure(spec: PoseFigureSpec): FigureModel {
           arrow = { from: start, to: add(start, scale(normalize(sub(to, from)), ARROW_CM * sol.k)) };
         }
       }
-      return { ...base, arrow, findings, topCm: poseTop(sk, sol, props) };
+      return { ...base, arrow, findings, topCm: poseTop(sk, sol, props), solves };
     },
   };
 }
@@ -3978,6 +4005,7 @@ export function smithSquatFigure(spec: SmithSquatSpec): FigureModel {
         findings,
         topCm: Math.max(headTop(sk, solution.world, solution.scaleFactor)[1], barY + smith.plateDiameterCm / 2),
         smithBarCm: barY,
+        solves: 1,
       };
     },
   };
@@ -4062,7 +4090,7 @@ export const FIGURES: Readonly<Record<string, FigureModel>> = Object.fromEntries
 - [ ] **Step 5: Run the pure tests**
 
 Run: `npx vitest run src/lib/figure tests/assets`
-Expected: `interpolate.test.ts` 8, `figures.test.ts` 10 and `figure-sweep.test.ts` 12 (two figures × five statures, plus a Play timing test per figure: 20 unvalidated in-between poses average under 25 ms) passed; everything else unchanged.
+Expected: `interpolate.test.ts` 8, `figures.test.ts` 10 and `figure-sweep.test.ts` 12 (two figures × five statures, plus a Play budget test per figure: at every stature, 20 unvalidated in-between poses each run the solver at most 5 times, with a loose 100 ms wall-clock sanity bound) passed; everything else unchanged.
 
 - [ ] **Step 6: Move the 3D layer and the island to FigureModel**
 
@@ -6084,11 +6112,11 @@ When CI is green: `gh pr merge --squash --delete-branch && git checkout main && 
 
 - [ ] **Step 6: Wait for the deploy**
 
-The merge to `main` triggers CI and then the deploy. Check that it finished: `gh run list --repo tomqwu/ai_health --workflow deploy.yml --limit 1` shows `completed success`, and `https://tomqwu.github.io/ai_health/en/dev/figures/db-curl/` loads.
+The merge to `main` triggers CI and then the deploy (the first run renders everything cold). Wait for both: `gh run watch --repo tomqwu/ai_health $(gh run list --repo tomqwu/ai_health --workflow ci.yml --branch main --limit 1 --json databaseId -q '.[0].databaseId') --exit-status`, then the same for `deploy.yml` once it has started. Then check that `https://tomqwu.github.io/ai_health/en/dev/figures/db-curl/` loads.
 
 - [ ] **Step 7 (controller only, non-blocking): Send the owner an early look**
 
-A subagent executing this task stops after Step 6 and reports. The controller then sends the owner, in chat, one message:
+A subagent executing this task stops after Step 6 and reports. The controller then posts one message as a comment on the Task 15 gate issue (so GitHub notifies the owner, who may not see mid-turn chat text until the turn ends) and sends the same text in chat:
 
 > Early look at the M3 figures, before the other 18 are posed. The first library figure, the dumbbell curl: https://tomqwu.github.io/ai_health/en/dev/figures/db-curl/ (drag to orbit, Play, try the height picker). All 20 equipment models: https://tomqwu.github.io/ai_health/en/dev/figures/ (the "Equipment" section). Anything about the look (the person, the equipment, the camera, the arrow) is easiest to change now. One question for later (#47): elbows and knees bend on their hinges, which folds the sleeve a little at the shoulder; the full review will show both options side by side. No need to reply now: work carries on, and the full review comes after all 20 figures.
 
@@ -6385,7 +6413,7 @@ Notes on the numbers: pressing grips seat the bar low in the palm (`seat: 'palm'
 - [ ] **Step 5: Run the sweep and the checks**
 
 Run: `npx vitest run src/lib/figure tests/assets && npm run lint && npm run check`
-Expected: the coverage test passes; `figure-sweep.test.ts` 30 passed (5 figures × five statures, 150–200 cm, keyframes and in-between poses, plus a Play timing test per figure), with no errors and no warnings (the sweep fails on either); 0 lint and type errors. If a frame fails after an edit, the finding names the check, the part and the distance; adjust that frame's numbers (hips `bodyCm`, a limb target, an elbow or knee pole, a grip's `alongCm`) and rerun. A wrist finding usually means the forearm is not under the hand: move the elbow pole or widen the grip rather than turning the hand.
+Expected: the coverage test passes; `figure-sweep.test.ts` 30 passed (5 figures × five statures, 150–200 cm, keyframes and in-between poses, plus a Play budget test per figure: at most 5 solver runs per in-between pose), with no errors and no warnings (the sweep fails on either); 0 lint and type errors. If a frame fails after an edit, the finding names the check, the part and the distance; adjust that frame's numbers (hips `bodyCm`, a limb target, an elbow or knee pole, a grip's `alongCm`) and rerun. A wrist finding usually means the forearm is not under the hand: move the elbow pole or widen the grip rather than turning the hand.
 
 - [ ] **Step 6: Render and look**
 
@@ -6761,7 +6789,7 @@ Notes on the numbers: standing hips at 94.4 cm (at 175 cm) leave the knees soft;
 - [ ] **Step 5: Run the sweep and the checks**
 
 Run: `npx vitest run src/lib/figure tests/assets && npm run lint && npm run check`
-Expected: the coverage test passes; `figure-sweep.test.ts` 60 passed (10 figures × five statures, 150–200 cm, keyframes and in-between poses, plus a Play timing test per figure), with no errors and no warnings (the sweep fails on either); 0 lint and type errors. If a frame fails after an edit, the finding names the check, the part and the distance; adjust that frame's numbers (hips `bodyCm`, a limb target, an elbow or knee pole, a grip's `alongCm`) and rerun. A wrist finding usually means the forearm is not under the hand: move the elbow pole or widen the grip rather than turning the hand.
+Expected: the coverage test passes; `figure-sweep.test.ts` 60 passed (10 figures × five statures, 150–200 cm, keyframes and in-between poses, plus a Play budget test per figure: at most 5 solver runs per in-between pose), with no errors and no warnings (the sweep fails on either); 0 lint and type errors. If a frame fails after an edit, the finding names the check, the part and the distance; adjust that frame's numbers (hips `bodyCm`, a limb target, an elbow or knee pole, a grip's `alongCm`) and rerun. A wrist finding usually means the forearm is not under the hand: move the elbow pole or widen the grip rather than turning the hand.
 
 - [ ] **Step 6: Render and look**
 
@@ -7062,7 +7090,7 @@ Notes on the numbers: bodies facing the column are turned 180° (`yawDeg: 180`),
 - [ ] **Step 5: Run the sweep and the checks**
 
 Run: `npx vitest run src/lib/figure tests/assets && npm run lint && npm run check`
-Expected: the coverage test passes; `figure-sweep.test.ts` 78 passed (13 figures × five statures, 150–200 cm, keyframes and in-between poses, plus a Play timing test per figure), with no errors and no warnings (the sweep fails on either); 0 lint and type errors. If a frame fails after an edit, the finding names the check, the part and the distance; adjust that frame's numbers (hips `bodyCm`, a limb target, an elbow or knee pole, a grip's `alongCm`) and rerun. A wrist finding usually means the forearm is not under the hand: move the elbow pole or widen the grip rather than turning the hand.
+Expected: the coverage test passes; `figure-sweep.test.ts` 78 passed (13 figures × five statures, 150–200 cm, keyframes and in-between poses, plus a Play budget test per figure: at most 5 solver runs per in-between pose), with no errors and no warnings (the sweep fails on either); 0 lint and type errors. If a frame fails after an edit, the finding names the check, the part and the distance; adjust that frame's numbers (hips `bodyCm`, a limb target, an elbow or knee pole, a grip's `alongCm`) and rerun. A wrist finding usually means the forearm is not under the hand: move the elbow pole or widen the grip rather than turning the hand.
 
 - [ ] **Step 6: Render and look**
 
@@ -7456,7 +7484,7 @@ Notes on the numbers: hanging and kneeling bodies are placed from the thing they
 - [ ] **Step 5: Run the sweep and the checks**
 
 Run: `npx vitest run src/lib/figure tests/assets && npm run lint && npm run check`
-Expected: the coverage test passes; `figure-sweep.test.ts` 102 passed (17 figures × five statures, 150–200 cm, keyframes and in-between poses, plus a Play timing test per figure), with no errors and no warnings (the sweep fails on either); 0 lint and type errors. If a frame fails after an edit, the finding names the check, the part and the distance; adjust that frame's numbers (hips `bodyCm`, a limb target, an elbow or knee pole, a grip's `alongCm`) and rerun. A wrist finding usually means the forearm is not under the hand: move the elbow pole or widen the grip rather than turning the hand.
+Expected: the coverage test passes; `figure-sweep.test.ts` 102 passed (17 figures × five statures, 150–200 cm, keyframes and in-between poses, plus a Play budget test per figure: at most 5 solver runs per in-between pose), with no errors and no warnings (the sweep fails on either); 0 lint and type errors. If a frame fails after an edit, the finding names the check, the part and the distance; adjust that frame's numbers (hips `bodyCm`, a limb target, an elbow or knee pole, a grip's `alongCm`) and rerun. A wrist finding usually means the forearm is not under the hand: move the elbow pole or widen the grip rather than turning the hand.
 
 - [ ] **Step 6: Render and look**
 
@@ -7847,7 +7875,7 @@ Notes on the numbers: a part lying along a surface (`along`) must touch at both 
 - [ ] **Step 5: Run the sweep and the checks**
 
 Run: `npx vitest run src/lib/figure tests/assets && npm run lint && npm run check`
-Expected: the coverage test passes; `figure-sweep.test.ts` 120 passed (20 figures × five statures, 150–200 cm, keyframes and in-between poses, plus a Play timing test per figure), with no errors and no warnings (the sweep fails on either); 0 lint and type errors. If a frame fails after an edit, the finding names the check, the part and the distance; adjust that frame's numbers (hips `bodyCm`, a limb target, an elbow or knee pole, a grip's `alongCm`) and rerun. A wrist finding usually means the forearm is not under the hand: move the elbow pole or widen the grip rather than turning the hand.
+Expected: the coverage test passes; `figure-sweep.test.ts` 120 passed (20 figures × five statures, 150–200 cm, keyframes and in-between poses, plus a Play budget test per figure: at most 5 solver runs per in-between pose), with no errors and no warnings (the sweep fails on either); 0 lint and type errors. If a frame fails after an edit, the finding names the check, the part and the distance; adjust that frame's numbers (hips `bodyCm`, a limb target, an elbow or knee pole, a grip's `alongCm`) and rerun. A wrist finding usually means the forearm is not under the hand: move the elbow pole or widen the grip rather than turning the hand.
 
 - [ ] **Step 6: Render and look**
 
@@ -8589,18 +8617,19 @@ Expected: the sweep passes for the flagged curl (6 tests); `.cache/compare47/cur
 
 - [ ] **Step 3: Ask the owner in chat, then stop**
 
-Post the same text on the gate issue, then send it to the owner in chat with the comparison image attached:
+Post the same text on the gate issue, then send it to the owner in chat. A terminal controller cannot attach a file, so give the image's local path, `.cache/compare47/curl-top-b-vs-a.png` (full path from `realpath`), and upload it to the gate issue comment if the owner reads it on GitHub:
 ```text
 The M3 figures are ready for your review: https://tomqwu.github.io/ai_health/en/dev/figures/
 - 20 exercise figures (one per movement pattern) and 20 equipment models, all with typical dimensions.
 - Each figure page has the live 3D view (drag to orbit, Play, and a height picker from 150 to 200 cm) and the check table.
 Please tell me what looks wrong or unrealistic: the person, poses, hands, camera angles, equipment.
 
-One decision (#47, elbow twist). The attached image is the curl's top frame both ways:
+One decision (#47, elbow twist). The comparison image (path below) is the curl's top frame both ways:
 (b) Current: elbows and knees always bend on their hinges, and the joint checks know which way they bend. The upper arm rolls, which can fold the sleeve at the shoulder. [left]
 (c) Keep (b) and add twist bones to the 3D person, so the roll spreads along the upper arm and the sleeve does not fold. Needs Blender on your machine to rebuild the model; a follow-up issue.
 (a) The arm swings the shortest way; elbows are checked by how much they bend, not which way. Looks slightly different at the shoulder, and a wrongly bent elbow would no longer be caught. [right]
 Which do you prefer: keep (b), (b) now and (c) later, or (a)?
+Comparison image: <full path to .cache/compare47/curl-top-b-vs-a.png>
 ```
 Then **end the turn**. Do not start Task 16, do not close any issue, and do not treat anything but the owner's own reply in chat as an answer.
 
@@ -8677,12 +8706,12 @@ git checkout main && git pull && git checkout -b m3/<issue>-m3-exit
 
 1. A figure is data: a `PoseFigureSpec` in `src/lib/figure/fixtures/<id>.ts` (scene, camera, three frames), registered in `fixtures/index.ts`. Each frame places the hips (`trunk.hips`, a `PointRef`), leans and bends the trunk, and gives each limb a goal: a hand's grip point and how it holds (`bar`, `flat`, `free`), a foot's contact point and orientation (`flat`, `ball`, `none`). Contacts with surfaces (`pelvis` on `bench.seat`, `shank_l` on `floor`…) are declared and checked.
 2. Points are `{ from, cm, bodyCm, yFromFloor }`: an anchor (the floor, equipment such as `bench.hinge` or `pullup.bar`, or the posed body such as `body.shoulder_l`), a fixed offset and an offset written for 175 cm that scales with stature. A pose that uses only body offsets is the same pose at every stature; fixed equipment is where statures differ, and the sweep checks each one.
-3. Run `npx vitest run src/lib/figure tests/assets`. The figure sweep (`tests/assets/figure-sweep.test.ts`) poses every figure × frame × stature {150, 165, 175, 190, 200}, and the in-between Play poses, on the real rig. Any error or warning fails it. A case that genuinely cannot be posed is declared in `expectedFailures` with its reason; the sweep checks it still fails. It also times Play: 20 unvalidated in-between poses must average under 25 ms.
+3. Run `npx vitest run src/lib/figure tests/assets`. The figure sweep (`tests/assets/figure-sweep.test.ts`) poses every figure × frame × stature {150, 165, 175, 190, 200}, and the in-between Play poses, on the real rig. Any error or warning fails it. A case that genuinely cannot be posed is declared in `expectedFailures` with its reason; the sweep checks it still fails. It also budgets Play by solver runs, which do not depend on the machine: an unvalidated in-between pose may run the solver at most 5 times (`PosedFigure.solves`), so its contact settle must converge.
    - Elbows and knees bend on their hinges: `solvePose` rolls the upper arm and thigh with `twoBoneIK`'s `bendSide` (issue #47, option b), so their signed limits apply. `hinge: false` on an arm goal gives option (a): the shortest swing, with a magnitude-only elbow check. The M1 Smith squat keeps option (a) and its approved look.
    - Joint limits (`ROM_LIMITS`) are signed. The hip reads 0 standing and is measured about its hinge only, so spreading the legs does not read as extension; it may extend to −20°. The authored spine and neck have limits too (`SPINE_LIMITS_DEG`).
    - Wrists (`wristBendDeg`, in the forearm's frame) stay within 30° of rest when holding something, 25° when pressing (`seat: 'palm'`) and 85° when flat on a surface. A bar grip keeps the wrist straight by construction; a wrist finding means the forearm is not under the hand, so move the elbow pole or widen the grip.
    - Held implements may not sink into the body (more than 2 cm warns, more than 4 cm fails) unless the frame declares the touch in `touches`. A `loose` contact (thighs on a seat) is allowed but not measured.
-   - In-between poses blend numbers, turn directions along the shorter arc, swing hands placed from a shoulder around it, and settle onto the first measured contact both frames declare (at most five solves). Both frames must measure each point from the same anchor. Play poses with `{ validate: false }`.
+   - In-between poses blend numbers, turn directions along the shorter arc, swing hands placed from a shoulder around it, and settle onto the first measured contact both frames declare (a secant search of at most five steps; a part lying `along` a surface settles on the mean of its two end gaps, so the search converges). Both frames must measure each point from the same anchor. Play poses with `{ validate: false }`.
 4. `npm run render:figures` and open `/<lang>/dev/figures/<id>/`: the live viewer with a height picker, the frames and the sweep table.
 
 ```
@@ -8763,7 +8792,7 @@ npm run test:e2e   # end-to-end tests (run render:figures first)
 - [ ] **Step 3: Full verification**
 
 Run: `npm test && npm run lint && npm run check && npm run render:figures && npm run build && npm run test:e2e`
-Expected: every unit test passes, including the figure sweep (120: 20 figures × 5 statures plus the Play timing tests, with no errors or warnings); 0 lint and type errors; every image comes from the cache or renders; the build completes; every end-to-end test passes, with and without WebGL.
+Expected: every unit test passes, including the figure sweep (120: 20 figures × 5 statures plus the Play budget tests, with no errors or warnings); 0 lint and type errors; every image comes from the cache or renders; the build completes; every end-to-end test passes, with and without WebGL.
 
 - [ ] **Step 4: Privacy check**
 
@@ -8822,6 +8851,6 @@ gh api -X PATCH repos/tomqwu/ai_health/milestones/$M -f state=closed
 - After every task: `tsc --noEmit`, `vitest run` and `eslint .` passed, with the per-file counts each task states (total tests after Tasks 1–8: 448, 459, 490, 503, 524, 554, 557, 557; after Tasks 9–14: 577, 607, 625, 649, 668, 679).
 - Task 6: `astro check` 0 errors; `render:figures` (still on the M1 harness protocol) rendered the dumbbell curl and the Smith squat, whose frames pass the Task 1 Step 6 comparison with `main`'s render (frame 0: max 15 levels, 0.012% of values off by more than 8; frame 1: max 6; frame 2 identical); 44 end-to-end tests passed.
 - Task 8: 52 end-to-end tests passed, including the WebGL-off fallback for the Smith squat and the dumbbell curl, the model-failure fallback and zero errors and warnings in the check table.
-- After Task 16: 45 test files and 679 tests passed (the sweep is 120 of them: 20 figures × 5 statures, each covering the keyframes and in-between poses with no errors or warnings, and 20 Play timing tests at 1–7 ms against the 25 ms budget); 0 lint problems; `astro check` 0 errors and 0 warnings; `astro build` built 50 pages (only the expected "templates" warning); a cold `render:figures` produced all 80 images (60 frames, 20 stills) in about 1.5 min locally, and a second run took all 80 from the cache; 52 end-to-end tests passed. Task 15's `hinge: false` comparison was rendered too, and the flagged curl passes the sweep.
+- After Task 16: 45 test files and 679 tests passed (the sweep is 120 of them: 20 figures × 5 statures, each covering the keyframes and in-between poses with no errors or warnings, and 20 Play budget tests: every unvalidated in-between pose at every stature runs the solver at most 5 times; the most any figure needed was 4, the side plank 3 now that its forearm settles on the mean end gap, at about 1.8 ms a pose locally); 0 lint problems; `astro check` 0 errors and 0 warnings; `astro build` built 50 pages (only the expected "templates" warning); a cold `render:figures` produced all 80 images (60 frames, 20 stills) in about 1.5 min locally, and a second run took all 80 from the cache; 52 end-to-end tests passed. Task 15's `hinge: false` comparison was rendered too, and the flagged curl passes the sweep.
 - Every figure's frames were rendered and inspected after the review changes (curl dumbbells beside the thighs, straight wrists on the presses and the Pallof press, the deadlift's gaze, the upright stretch with the pelvis tucked, the whole body in frame).
 - Not dry-run: the GitHub side (issues, the `actions/cache` step on hosted runners, the deploy), CI's timing with software WebGL on runners, and the owner's answers (Tasks 8 and 15).
