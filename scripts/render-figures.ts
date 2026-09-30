@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
+import { connect } from 'node:net';
 import { chromium, type Browser } from '@playwright/test';
 import sharp from 'sharp';
 import { arrowSvg } from '../src/lib/figure/arrow';
@@ -15,22 +16,59 @@ const HARNESS = `http://127.0.0.1:${PORT}/ai_health/render/figure/`;
 const OUT = 'public/figures';
 const MIN_COLORS = 200;
 
-async function waitForServer(url: string): Promise<void> {
-  for (let i = 0; i < 120; i++) {
-    try {
-      if ((await fetch(url)).ok) return;
-    } catch {
-      // server not up yet
-    }
-    await new Promise((r) => setTimeout(r, 500));
+/** The dev server exited (or could not start) before it became ready. */
+class ServerExitError extends Error {
+  constructor(
+    message: string,
+    readonly exitCode: number,
+  ) {
+    super(message);
   }
-  throw new Error(`Dev server did not start: ${url}`);
+}
+
+/** True if something already accepts connections on the port. */
+function portInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ port, host: '127.0.0.1' });
+    socket.once('connect', () => (socket.destroy(), resolve(true)));
+    socket.once('error', () => resolve(false));
+  });
+}
+
+if (await portInUse(PORT)) {
+  console.error(`Port ${PORT} is already in use, probably by a stale Astro dev server. Run "npx astro dev stop" (or stop whatever else is using the port) and try again.`);
+  process.exit(1);
 }
 
 // --ignore-lock keeps Astro 7 in the foreground even when it detects an AI agent, so kill() really stops it.
 const server = spawn('node_modules/.bin/astro', ['dev', '--port', String(PORT), '--ignore-lock', '--host', '127.0.0.1'], {
   stdio: ['ignore', 'inherit', 'inherit'],
 });
+let serverFailure: ServerExitError | undefined;
+const serverStopped = new Promise<void>((resolve) => {
+  server.once('exit', (code, signal) => {
+    serverFailure ??= new ServerExitError(`astro dev exited before it was ready (${signal ? `signal ${signal}` : `exit code ${code}`})`, code ?? 1);
+    resolve();
+  });
+  server.once('error', (err) => {
+    serverFailure ??= new ServerExitError(`Could not start astro dev: ${err.message}`, 1);
+    resolve();
+  });
+});
+
+async function waitForServer(url: string): Promise<void> {
+  for (let i = 0; i < 120; i++) {
+    if (serverFailure) throw serverFailure;
+    try {
+      if ((await fetch(url)).ok) return;
+    } catch {
+      // server not up yet
+    }
+    await Promise.race([new Promise((r) => setTimeout(r, 500)), serverStopped]);
+  }
+  throw new Error(`Dev server did not start: ${url}`);
+}
+
 let browser: Browser | undefined;
 try {
   await waitForServer(`${HARNESS}?list=1`);
@@ -77,6 +115,11 @@ try {
   }
   if (rendered === 0) throw new Error('No figure frames were rendered (empty figure list)');
   if (errors.length) throw new Error(`Page errors while rendering:\n${errors.join('\n')}`);
+} catch (err) {
+  // Fail with Astro's own exit code; anything else keeps its stack trace.
+  if (!(err instanceof ServerExitError)) throw err;
+  console.error(err.message);
+  process.exitCode = err.exitCode;
 } finally {
   await browser?.close();
   server.kill();
