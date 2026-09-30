@@ -272,7 +272,7 @@ type Profile = {
   units: { length: 'cm' | 'in'; mass: 'kg' | 'lb' };        // display only; storage is metric
   statureCm?: number;
   room: { ceilingHeightCm?: number; clearanceMarginCm: number /* default 10 */ };
-  equipment: { id: string; params: Record<string, number | boolean | string[]> }[];
+  equipment: { id: string; params: Record<string, ParamValue> }[]; // §5.1 value types; optional overrides of typical values (D12)
   attachments: string[];
   exclusions: string[];                                     // exercise ids the user never wants
   limitations: ('knee-sensitive' | 'shoulder-sensitive' | 'low-back-sensitive' | 'wrist-sensitive')[];
