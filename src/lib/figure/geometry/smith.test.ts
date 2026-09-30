@@ -53,4 +53,32 @@ describe('buildSmith', () => {
       expect(aabbOverlap(bar, aabbOf(up)), up.id).toBe(false);
     }
   });
+  it('mirrors the right-side carriage, stops and catches', () => {
+    const c = byId(prims, 'carriage-right');
+    expect(c.kind === 'box' && c.center[1]).toBe(120);
+    expect(aabbOf(byId(prims, 'stop-right')).max[1]).toBeCloseTo(P.lowestBarHeightCm - CARRIAGE_HALF_HEIGHT_CM);
+    expect(aabbOf(byId(prims, 'catch-right')).max[1]).toBeCloseTo(90 - CARRIAGE_HALF_HEIGHT_CM);
+  });
+  it('moves the carriage and plates with the bar height but leaves the stops alone', () => {
+    const a = buildSmith(P, { barHeightCm: 100, catchHeightCm: 90 });
+    const b = buildSmith(P, { barHeightCm: 150, catchHeightCm: 90 });
+    for (const id of ['carriage-left', 'carriage-right', 'plate-left', 'plate-right', 'bar']) {
+      expect(aabbOf(byId(b, id)).min[1] - aabbOf(byId(a, id)).min[1], id).toBeCloseTo(50);
+    }
+    for (const id of ['stop-left', 'stop-right', 'catch-left', 'catch-right']) {
+      expect(byId(b, id), id).toEqual(byId(a, id));
+    }
+  });
+  it('keeps the bar and plates clear of the frame at the lowest and highest bar heights', () => {
+    for (const barHeightCm of [P.lowestBarHeightCm, P.highestBarHeightCm]) {
+      const built = buildSmith(P, { barHeightCm });
+      const frame = built.filter((p) => /^(beam|upright|base)-/.test(p.id));
+      for (const id of ['bar', 'plate-left', 'plate-right']) {
+        const box = aabbOf(byId(built, id));
+        for (const f of frame) {
+          expect(aabbOverlap(box, aabbOf(f)), `${id} vs ${f.id} at ${barHeightCm}`).toBe(false);
+        }
+      }
+    }
+  });
 });

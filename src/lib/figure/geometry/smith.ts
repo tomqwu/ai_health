@@ -1,8 +1,8 @@
 import type { Primitive } from './primitives';
 
 /**
- * Smith machine geometry (cm). Origin: floor under the rack centre; +Z toward the side the lifter
- * faces; +X to the lifter's left.
+ * Smith machine geometry (cm). Origin: floor under the rack centre; +Z = the lifter's facing
+ * direction; +X to the lifter's left.
  */
 export interface SmithParams {
   rackInnerWidthCm: number;
@@ -38,7 +38,7 @@ export const ILLUSTRATIVE_SMITH: SmithParams = {
   barRadiusCm: 1.6,
   sleeveLengthCm: 30,
   lowestBarHeightCm: 40,
-  highestBarHeightCm: 190,
+  highestBarHeightCm: 180,
   plateDiameterCm: 45,
   plateThicknessCm: 6,
 };
