@@ -24,7 +24,7 @@ function filesUnder(path: string): string[] {
   try {
     return readdirSync(path, { withFileTypes: true })
       .flatMap((e) => (e.isDirectory() ? filesUnder(join(path, e.name)) : [join(path, e.name)]))
-      .filter((f) => !/\.test\.ts$/.test(f))
+      .filter((f) => /\.(ts|astro)$/.test(f) && !/\.test\.ts$/.test(f)) // source only: editor swap files and .DS_Store must not change a key
       .sort();
   } catch {
     return [path];
