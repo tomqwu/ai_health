@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # One-time local setup for regenerating the human model. Requires Blender >= 4.2.
-# Idempotent: every step verifies and skips when already done.
+# Safe to rerun: verified downloads and an installed MPFB 2.0.17 are reused; the asset pack is
+# extracted again every run.
 #
 # Pinned toolchain (the versions used to build the committed public/models/human.glb, 2026-09-29):
 #   MPFB 2.0.17 extension zip (content-addressed URL, verified by sha256 before install)

@@ -30,7 +30,7 @@ npm run build:human          # Blender → raw glb → optimise (meshopt + WebP)
 npx vitest run tests/assets  # model budget, skeleton sync, and the real-rig Smith squat sweep
 ```
 
-- `setup-mpfb.sh` pins both downloads by sha256 (the MPFB 2.0.17 extension zip, about 3 MB, and `makehuman_system_assets_cc0.zip`, about 267 MB), verifies each before use, and caches them in `.cache/` (git-ignored). The asset server is slow, so the first run takes a long time; later runs skip finished steps. It fails if a different MPFB version is already installed. The pins are listed in `assets-src/human/README.md`.
+- `setup-mpfb.sh` pins both downloads by sha256 (the MPFB 2.0.17 extension zip, about 43 MB, and `makehuman_system_assets_cc0.zip`, about 267 MB), verifies each before use, and caches them in `.cache/` (git-ignored). The asset server is slow, so the first run takes a long time. Later runs reuse the cached, verified zips and skip installing MPFB if 2.0.17 is already there, but `install_assets.py` extracts the asset pack into MPFB's data folder again on every run. It fails if a different MPFB version is already installed. The pins are listed in `assets-src/human/README.md`.
 - Change body shape or assets in `assets-src/human/human.config.json`. The `.blend` and `assets-src/human/build/` are never committed.
 - `public/models/human.glb` is committed: about 0.67 MB (budget 8 MB), stature about 184 cm. `skeleton.json` records the glb's sha256, and `tests/assets` fails if the two drift apart, so always commit them together.
 - The exported `Body` mesh has no material. `loadHuman` applies the skin at runtime from `SKIN_TONE` in `src/lib/figure/scene3d/human.ts`.
@@ -46,7 +46,7 @@ npx vitest run tests/assets  # model budget, skeleton sync, and the real-rig Smi
 
 - `npm run render:figures` starts `astro dev` on port 4329, opens `/render/figure/` in headless Chromium with software WebGL (`SOFTWARE_WEBGL_ARGS` in `scripts/lib/browser.ts`, shared with `playwright.config.ts`), screenshots each frame, composites the movement arrow, and writes WebP files. It fails if a frame looks blank or the page throws.
 - Run `npx playwright install chromium` once per machine first.
-- Astro 7 puts `dev` and `preview` in the background when it detects an AI agent. The scripts pass `--ignore-lock` so they stay in the foreground and are stopped cleanly. If a server is left running, stop it with `npx astro dev stop` (or `npx astro preview stop`).
+- Astro 7 puts `dev` and `preview` in the background when it detects an AI agent. `render:figures` and the Playwright web server pass `--ignore-lock` so their servers stay in the foreground and are stopped cleanly. `npm run dev` and `npm run preview` do not; under an agent, add it yourself (`npm run dev -- --ignore-lock`). If a server is left running, stop it with `npx astro dev stop` (or `npx astro preview stop`).
 - CI and the deploy workflow run `render:figures` before building, so `public/figures/` is never committed.
 - `npm run test:e2e` builds the site and runs Playwright against `astro preview`. Locally, run `npm run render:figures` first: the spike page's frame images come from `public/figures/`.
 

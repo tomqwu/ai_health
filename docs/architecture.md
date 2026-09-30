@@ -36,7 +36,7 @@ See [figure-pipeline.md](figure-pipeline.md) for the 3D figure layers, conventio
 | `npm run build:human` | Regenerate the 3D human (needs Blender and MPFB; see [figure-pipeline.md](figure-pipeline.md)) |
 | `npm run check` / `npm run lint` | Type check / lint |
 
-Astro 7 backgrounds `dev` and `preview` when it detects an AI agent. The scripts pass `--ignore-lock` to avoid that; stop a stray server with `npx astro dev stop`.
+Astro 7 backgrounds `dev` and `preview` when it detects an AI agent. Only the Playwright web server and `render:figures` pass `--ignore-lock` to avoid that. When you run `npm run dev` or `npm run preview` under an agent, add it yourself (`npm run dev -- --ignore-lock`). Stop a stray server with `npx astro dev stop` or `npx astro preview stop`.
 
 ## Deploy
 
