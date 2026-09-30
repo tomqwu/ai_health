@@ -52,7 +52,7 @@ describe('shortSession', () => {
     const full = day([slot(0, a), slot(1, b), slot(2, c)]);
     const short = shortSession(full);
     expect(short.estimate.totalSec).toBeLessThan(full.estimate.totalSec);
-    expect(short.estimate.workSec).toBe((2 / 3) * full.estimate.workSec);
+    expect(short.estimate.workSec).toBeCloseTo((2 / 3) * full.estimate.workSec);
   });
   it('keeps a superset only when both partners stay', () => {
     const s = shortSession(day([slot(0, a), slot(1, b, { supersetWith: 0 }), slot(2, c, { priority: 3 }), slot(3, d, { supersetWith: 2 })]));
