@@ -11,6 +11,9 @@ const SURFACES: Record<SurfaceKind, THREE.MeshStandardMaterialParameters> = {
   carriage: { color: '#55585e', roughness: 0.5, metalness: 0.4 },
 };
 
+/** Radial segments of every cylinder (rails, bar, plates). */
+const CYLINDER_SEGMENTS = 32;
+
 /** Parts that travel with the bar; all are built centred at the bar height. */
 const MOVING = /^(bar$|plate-|carriage-)/;
 
@@ -31,7 +34,7 @@ export function buildEquipment(prims: readonly Primitive[]): THREE.Group {
     } else {
       const a = new THREE.Vector3(...p.start).multiplyScalar(CM);
       const b = new THREE.Vector3(...p.end).multiplyScalar(CM);
-      mesh = new THREE.Mesh(new THREE.CylinderGeometry(p.radius * CM, p.radius * CM, a.distanceTo(b), 32), material(p.surface));
+      mesh = new THREE.Mesh(new THREE.CylinderGeometry(p.radius * CM, p.radius * CM, a.distanceTo(b), CYLINDER_SEGMENTS), material(p.surface));
       mesh.position.copy(a).lerp(b, 0.5);
       mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
     }

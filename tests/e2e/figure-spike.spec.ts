@@ -43,6 +43,9 @@ for (const lang of ['en', 'zh']) {
     await expect(page.locator('.figure-frames img')).toHaveCount(3);
     await expect(page.locator('.spike-checks tbody tr')).toHaveCount(15);
     await expect(page.locator('.spike-checks .fail')).toHaveCount(0);
+    // Elbows show the bend magnitude the validator checks, explained by the note under the table.
+    await expect(page.locator('.spike-checks tbody')).not.toContainText(/\* -/);
+    await expect(page.locator('.spike-checks-note')).toBeVisible();
     expect(errors).toEqual([]);
   });
 }

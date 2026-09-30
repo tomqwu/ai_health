@@ -5,12 +5,13 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
 import { describe, expect, it } from 'vitest';
 import { extractSkeleton } from '../../scripts/lib/extractSkeleton';
-import { rotate } from '../../src/lib/figure/math/quat';
+import { angleBetweenQuatsDeg, normalizeQuat, type Quat, rotate } from '../../src/lib/figure/math/quat';
 import { REAL_SKELETON } from '../../src/lib/figure/pose/realSkeleton';
 import { restPose } from '../../src/lib/figure/pose/skeleton';
 import { PLAY_ORDER } from '../../src/lib/figure/pose/playOrder';
 import { interpolateFrame, solveSmithSquat } from '../../src/lib/figure/pose/smithSquat';
-import { validateSmithSquat } from '../../src/lib/figure/pose/validate';
+import { checkFigureFrame } from '../../src/lib/figure/pose/checkFigureFrame';
+import { jointAngles, romFindings } from '../../src/lib/figure/pose/validate';
 import { ILLUSTRATIVE_SMITH } from '../../src/lib/figure/geometry/smith';
 import { SMITH_SQUAT } from '../../src/lib/figure/fixtures/smith-squat';
 
@@ -49,11 +50,8 @@ describe('committed human model', () => {
   });
   it.each([150, 165, 175, 190, 200])('Smith squat frames are valid on the real rig at %i cm', (statureCm) => {
     for (const frame of SMITH_SQUAT.frames) {
-      const sol = solveSmithSquat(skeleton, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
-      expect(
-        validateSmithSquat(skeleton, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: SMITH_SQUAT.barRestOffsetCm }),
-        `${statureCm} cm / ${frame.id}`,
-      ).toEqual([]);
+      const { findings } = checkFigureFrame(skeleton, SMITH_SQUAT, frame, { statureCm, smith: ILLUSTRATIVE_SMITH });
+      expect(findings, `${statureCm} cm / ${frame.id}`).toEqual([]);
     }
   });
   it.each([150, 165, 175, 190, 200])('Smith squat in-between poses are valid on the real rig at %i cm', (statureCm) => {
@@ -61,12 +59,48 @@ describe('committed human model', () => {
       const [a, b] = [SMITH_SQUAT.frames[PLAY_ORDER[seg]!]!, SMITH_SQUAT.frames[PLAY_ORDER[seg + 1]!]!];
       for (const t of [0.25, 0.5, 0.75]) {
         const frame = interpolateFrame(a, b, t);
-        const sol = solveSmithSquat(skeleton, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
-        expect(
-          validateSmithSquat(skeleton, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: SMITH_SQUAT.barRestOffsetCm }),
-          `${statureCm} cm / ${frame.id}`,
-        ).toEqual([]);
+        const { findings } = checkFigureFrame(skeleton, SMITH_SQUAT, frame, { statureCm, smith: ILLUSTRATIVE_SMITH });
+        expect(findings, `${statureCm} cm / ${frame.id}`).toEqual([]);
       }
+    }
+  });
+  it('keeps the real-rig bottom frame where it was before #40 (175 cm)', () => {
+    // Recorded before the pose-robustness changes. 1e-5 cm is far below a rendered pixel but loose enough for
+    // harmless reordering (the rig's rotations are unit only to ~1e-8). Positions see a changed twist only
+    // through the fingers, so the upper arms' and thighs' world rotations are pinned too.
+    const recorded: Record<string, [number, number, number]> = {
+      lowerarm_l: [33.53210802447757, 79.01047122565174, -7.926390652420366],
+      hand_r: [-42.00000264045758, 103.46294990691753, -3.9999987224264424],
+      middle_03_l: [46.29438112059032, 111.1690134745823, 2.48426779087539],
+      calf_r: [-19.725202297913064, 48.19763469716158, 23.675250086279704],
+      head: [0, 113.41596514546777, 14.517814947292685],
+    };
+    const recordedRotations: Record<string, Quat> = {
+      upperarm_l: [0.02261337806872097, 0.27045673609664117, -0.9122010776113265, 0.3069704707978325],
+      upperarm_r: [0.02261337806872097, -0.27045673609664117, 0.9122010776113265, 0.3069704707978325],
+      thigh_l: [-0.7565605622153784, -0.04168225233884199, 0.10825015527038827, -0.6435530886294297],
+      thigh_r: [-0.7565605622153784, 0.04168225233884199, -0.10825015527038827, -0.6435530886294297],
+    };
+    const sol = solveSmithSquat(skeleton, SMITH_SQUAT, SMITH_SQUAT.frames[1]!, { statureCm: 175, railZCm: ILLUSTRATIVE_SMITH.railZCm });
+    for (const [bone, want] of Object.entries(recorded)) {
+      const got = sol.world[bone]!.position;
+      expect(Math.hypot(got[0] - want[0], got[1] - want[1], got[2] - want[2]), bone).toBeLessThan(1e-5);
+    }
+    for (const [bone, want] of Object.entries(recordedRotations)) {
+      // acos near 1 resolves only ~1.7e-6° (one ulp of the dot product), so pin at 1e-3°: far below any visible twist.
+      expect(angleBetweenQuatsDeg(normalizeQuat(sol.world[bone]!.rotation), normalizeQuat(want)), bone).toBeLessThan(1e-3);
+    }
+  });
+  it('the Smith squat elbows still read as bent the wrong way about the humerus hinge (known limitation, #40)', () => {
+    // If this starts failing, the solver now rolls the humerus: drop `signedElbow: false` in validateSmithSquat.
+    for (const frame of SMITH_SQUAT.frames) {
+      const sol = solveSmithSquat(skeleton, SMITH_SQUAT, frame, { statureCm: 175, railZCm: ILLUSTRATIVE_SMITH.railZCm });
+      for (const side of ['l', 'r'] as const) expect(jointAngles(skeleton, sol.world, side).elbowFlexDeg, `${frame.id} ${side}`).toBeLessThan(-90);
+      expect(romFindings(skeleton, sol.world).map((f) => f.message)).toEqual([
+        expect.stringMatching(/^elbowFlex_l .*hyperextension/),
+        expect.stringMatching(/^elbowFlex_r .*hyperextension/),
+      ]);
+      expect(romFindings(skeleton, sol.world, { signedElbow: false })).toEqual([]);
     }
   });
 });

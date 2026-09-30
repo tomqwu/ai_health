@@ -49,6 +49,7 @@ export const en = {
   'spike.check.result': 'Result',
   'spike.check.pass': 'All checks pass',
   'spike.check.fail': 'Failed',
+  'spike.check.elbowNote': '* Elbow: how far it bends, not which way. The figure does not yet turn the upper arm, so the checks test only the size of the elbow bend.',
   'angle.trunk': 'trunk',
   'angle.hip': 'hip',
   'angle.knee': 'knee',

@@ -51,6 +51,7 @@ export const zh: Dictionary = {
   'spike.check.result': '结果',
   'spike.check.pass': '全部通过',
   'spike.check.fail': '未通过',
+  'spike.check.elbowNote': '* 肘：只显示弯曲幅度，不显示弯曲方向。人物尚未模拟上臂旋转，因此检查只核对肘关节弯曲的幅度。',
   'angle.trunk': '躯干',
   'angle.hip': '髋',
   'angle.knee': '膝',

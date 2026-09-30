@@ -19,4 +19,5 @@
 .spike-checks th, .spike-checks td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .spike-checks .pass { color: var(--accent); }
 .spike-checks .fail { color: var(--danger); font-weight: 600; }
+.spike-checks-note { color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
 @media (max-width: 480px) { .spike-checks { font-size: 0.8rem; } }

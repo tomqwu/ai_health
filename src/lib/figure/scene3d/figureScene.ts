@@ -1,6 +1,6 @@
 import { REAL_SKELETON } from '../pose/realSkeleton';
 import { interpolateFrame, solveSmithSquat, type SmithSquatFrame, type SmithSquatSolution, type SmithSquatSpec } from '../pose/smithSquat';
-import { buildSmith, ILLUSTRATIVE_SMITH } from '../geometry/smith';
+import { buildSmith, catchHeightFor, ILLUSTRATIVE_SMITH } from '../geometry/smith';
 import { barArrow } from '../overlay';
 import { buildEquipment, setBarHeight } from './equipment';
 import { applyPose, loadHuman } from './human';
@@ -45,7 +45,7 @@ export async function mountFigure(
   let equipment: ReturnType<typeof buildEquipment>;
   try {
     setOrbitView(stage, view);
-    equipment = buildEquipment(buildSmith(smith, { barHeightCm: keyframes[0]!.barCenter[1], catchHeightCm: lowestBar - 8 }));
+    equipment = buildEquipment(buildSmith(smith, { barHeightCm: keyframes[0]!.barCenter[1], catchHeightCm: catchHeightFor(smith, lowestBar) }));
     stage.scene.add(equipment);
     rig = await loadHuman(opts.modelUrl);
     stage.scene.add(rig.root);

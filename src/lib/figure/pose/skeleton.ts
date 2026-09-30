@@ -1,4 +1,4 @@
-import { type Vec3, add, scale } from '../math/vec3';
+import { type Vec3, add, cross, normalize, scale, sub, Y_AXIS } from '../math/vec3';
 import { type Quat, multiply, rotate } from '../math/quat';
 
 /**
@@ -64,4 +64,12 @@ export function forwardKinematics(sk: SkeletonDef, input: PoseInput, scaleFactor
 
 export function restPose(sk: SkeletonDef, scaleFactor: number): WorldPose {
   return forwardKinematics(sk, { local: {} }, scaleFactor);
+}
+
+/**
+ * The body's facing direction in a pose, from its hip line (left hip minus right hip) crossed with up.
+ * Taken from the rest pose it is the rig's own forward, whatever its bones' axis conventions.
+ */
+export function bodyForward(w: WorldPose): Vec3 {
+  return normalize(cross(sub(w.thigh_l!.position, w.thigh_r!.position), Y_AXIS));
 }
