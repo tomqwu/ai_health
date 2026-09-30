@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { HTML_LANG, LOCALES, localizedPath, t } from '../lib/i18n';
+import { withBase } from '../lib/site';
 ---
 <!doctype html>
 <html lang="en">
@@ -9,10 +10,11 @@ import { HTML_LANG, LOCALES, localizedPath, t } from '../lib/i18n';
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <title>{t('en', 'notFound.title')} · {t('zh', 'notFound.title')}</title>
+    <link rel="icon" type="image/svg+xml" href={withBase('favicon.svg')} />
   </head>
   <body>
     <main class="container">
-      <h1>{t('en', 'notFound.title')} · <span lang="zh-Hans">{t('zh', 'notFound.title')}</span></h1>
+      <h1>{t('en', 'notFound.title')} · <span lang={HTML_LANG.zh}>{t('zh', 'notFound.title')}</span></h1>
       <ul>
         {LOCALES.map((l) => <li><a href={localizedPath(l)} lang={HTML_LANG[l]}>{t(l, 'notFound.back')}</a></li>)}
       </ul>

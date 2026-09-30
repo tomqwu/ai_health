@@ -1,5 +1,6 @@
 ---
-import { HTML_LANG, LOCALE_LABEL, LOCALES, localizedPath } from '../lib/i18n';
+import { HTML_LANG, LOCALE_LABEL, LOCALES, localizedPath, t } from '../lib/i18n';
+import { withBase } from '../lib/site';
 ---
 <!doctype html>
 <html lang="en">
@@ -7,7 +8,8 @@ import { HTML_LANG, LOCALE_LABEL, LOCALES, localizedPath } from '../lib/i18n';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
-    <title>Healthy Living · 健康生活</title>
+    <title>{t('en', 'site.name')} · {t('zh', 'site.name')}</title>
+    <link rel="icon" type="image/svg+xml" href={withBase('favicon.svg')} />
     <script>
       import { localizedPath, pickLocale } from '../lib/i18n';
       location.replace(localizedPath(pickLocale(navigator.languages ?? [navigator.language])));
@@ -15,7 +17,7 @@ import { HTML_LANG, LOCALE_LABEL, LOCALES, localizedPath } from '../lib/i18n';
   </head>
   <body>
     <main>
-      <h1>Healthy Living · 健康生活</h1>
+      <h1>{t('en', 'site.name')} · <span lang={HTML_LANG.zh}>{t('zh', 'site.name')}</span></h1>
       <ul>
         {LOCALES.map((l) => <li><a href={localizedPath(l)} lang={HTML_LANG[l]} hreflang={HTML_LANG[l]}>{LOCALE_LABEL[l]}</a></li>)}
       </ul>
