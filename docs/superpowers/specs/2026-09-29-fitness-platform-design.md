@@ -53,9 +53,10 @@ visitor's browser.
 | D6 | Stack | Astro + TypeScript, Preact islands, GitHub Actions → Pages | Static content pages + small interactive tools; build-time content validation; built-in i18n routing |
 | D7 | PDF | Print-optimized route + browser "Save as PDF" | Native CJK font support, crisp output, zero PDF dependencies |
 | D8 | Project tracking | GitHub milestones, labels, issues; one PR per issue | Owner request |
-| D9 | Setup positions | Words on public pages ("chest height"); approximate hole numbers only in personal plans, computed from the user's own measurements | Practical beside the machine without inventing settings |
+| D9 | Setup positions | Words everywhere ("chest height"); no hole numbers in v1 (see D12) | Practical beside the machine without inventing settings |
 | D10 | Cable loads | Shown as the numbers printed on the stack; the cable ratio is optional and never guessed | Plans use RIR, so the ratio isn't needed |
 | D11 | Movement arrows on figures | Composited into the pre-rendered WebP frames, not served as overlay JSON; the interactive viewer still draws them as an SVG overlay. Render caching by content hash is deferred to M3 | Arrows carry no text, so one render still serves both languages; fewer moving parts for static pages |
+| D12 | Equipment measurements (2026-09-30) | Never required. Plans and guides describe general movements and setups for each device type; geometry checks use typical (illustrative) dimensions, and a user can optionally enter their own. Hole numbers (§7.5) are dropped from v1 | Owner: "I just need general moves for these devices" |
 
 ## 4. Architecture
 
@@ -123,9 +124,8 @@ id: smith-functional-trainer
 kind: station                     # station | bench | free-weight | cardio | accessory
 name: { en: Smith machine + functional trainer, zh: 史密斯机综合训练器 }
 capabilities: [smith-bar, rack-uprights, j-hooks, spotter-arms, safety-catches, cable-column, pull-up-bar]
-parameters:                       # measured by the user; never invented
-  holeNumbering:           { type: holes, how: { en: "If the uprights are numbered: floor to the center of the lowest and highest numbered holes, and their numbers", zh: "…" } }
-  smithLowestBarHeightCm:  { type: cm,   how: { en: "Lower the bar onto its bottom stop; measure floor to top of bar", zh: "…" } }
+parameters:                       # what a user may measure (optional, D12); never invented
+  smithLowestBarHeightCm:  { type: cm,   how: { en: "Lower the bar onto its bottom stop; measure floor to the centre of the bar", zh: "…" } }
   smithHighestBarHeightCm: { type: cm,   how: { en: "…", zh: "…" } }
   smithRailAngleDeg:       { type: deg,  how: { en: "0 = vertical rails", zh: "…" } }
   rackInnerDepthCm:        { type: cm,   how: { en: "…", zh: "…" } }
@@ -135,14 +135,16 @@ parameters:                       # measured by the user; never invented
   safetyCatchMinHeightCm:  { type: cm,   how: { en: "…", zh: "…" } }
   cableColumns:            { type: count, how: { en: "Number of independent pulley columns", zh: "…" } }
   pulleyPositions:         { type: enum-set, values: [high, chest, low], how: { en: "…", zh: "…" } }
-  pulleyHoleRange:         { type: holes-range, optional: true, how: { en: "Adjustable carriages: lowest and highest hole the carriage pins into", zh: "…" } }
   cableStack:              { type: stack, how: { en: "First and last number printed on the stack, the step, and the unit", zh: "…" } }
-  cableRatio:              { type: enum, values: ["1:1", "2:1", "4:1", unknown], optional: true, how: { en: "From the manual; leave unknown if unsure", zh: "…" } }
+  cableRatio:              { type: enum, values: ["1:1", "2:1", "4:1", unknown], how: { en: "From the manual; leave unknown if unsure", zh: "…" } }
   benchFitsInsideRack:     { type: bool, how: { en: "Can the bench, backrest included, sit fully between the uprights at every angle you use?", zh: "…" } }
-illustrativeDefaults:             # used only for drawing when unmeasured; always labeled "illustrative"
+illustrativeDefaults:             # typical values (D12): drawn on pages (labeled "illustrative"), used by feasibility when unmeasured
   smithLowestBarHeightCm: 40
+  smithHighestBarHeightCm: 180
   smithRailAngleDeg: 0
   rackInnerDepthCm: 90
+  pullUpBarHeightCm: 210
+  benchFitsInsideRack: true
   # …
 model3d: smith-functional-trainer # parametric builder id in lib/figure/geometry + scene3d
 guide: smith-functional-trainer   # MDX: parts, adjustment, hooks/catches, safety, supported training
@@ -150,15 +152,21 @@ guide: smith-functional-trainer   # MDX: parts, adjustment, hooks/catches, safet
 
 Rules:
 
-- `parameters` describe what can be measured. Values live only in the user's profile.
-- `illustrativeDefaults` exist so generic pages can draw the equipment. They are never used for feasibility.
-- Public content describes pulley, J-hook and catch positions in words (high / chest height / low). Hole numbers
-  appear only in a user's personal plan, computed from their own measurements (§7.5).
+- `parameters` describe what can be measured. Values live only in the user's profile, and none is ever required
+  (D12): nothing prompts for them.
+- `illustrativeDefaults` are the equipment's typical values (D12). Generic pages draw them, labeled
+  "illustrative", and feasibility (§7.1) uses them for every parameter the user has not measured. The build
+  fails if a parameter that a geometry check reads (`smithLowestBarHeightCm`, `smithHighestBarHeightCm`,
+  `pullUpBarHeightCm`, `benchFitsInsideRack`) has no illustrative default.
+- Smith bar heights (the stops and every bar height the engine compares with them) are measured from the floor
+  to the centre of the bar, the same datum as the geometry layer.
+- Pulley, J-hook and catch positions are described in words (high / chest height / low), in public content and
+  in personal plans alike. There are no hole numbers in v1 (D9, D12).
 - Cable loads are shown as the numbers printed on the stack, in the stack's unit. `cableRatio` is optional and
   never guessed.
-- Parameter types: `cm`, `deg`, `bool`, `count`, `enum`, `enum-set`, `holes` (first/last hole number and
-  height; linear spacing, validated as increasing), `holes-range` (min/max hole number), `stack`
-  (first, last, step, unit `lb` or `kg`) and `weights` (a list of owned loads with a unit, e.g. dumbbell pairs).
+- Parameter types: `cm`, `deg`, `bool`, `count`, `enum`, `enum-set`, `stack` (first, last, step, unit `lb` or
+  `kg`) and `weights` (a list of owned loads with a unit, e.g. dumbbell pairs). v1 has no hole-numbering types
+  (D12).
 
 v1 equipment: `smith-functional-trainer`, `adjustable-bench`, `dumbbells`, `barbell` (with bumper plates),
 `resistance-bands`, `treadmill`, `rowing-machine`, `exercise-bike`, `foam-roller`, `massage-ball`, `ab-wheel`,
@@ -264,7 +272,7 @@ type Profile = {
   units: { length: 'cm' | 'in'; mass: 'kg' | 'lb' };        // display only; storage is metric
   statureCm?: number;
   room: { ceilingHeightCm?: number; clearanceMarginCm: number /* default 10 */ };
-  equipment: { id: string; params: Record<string, number | boolean | string[]> }[];
+  equipment: { id: string; params: Record<string, ParamValue> }[]; // §5.1 value types; optional overrides of typical values (D12)
   attachments: string[];
   exclusions: string[];                                     // exercise ids the user never wants
   limitations: ('knee-sensitive' | 'shoulder-sensitive' | 'low-back-sensitive' | 'wrist-sensitive')[];
@@ -281,13 +289,12 @@ type Profile = {
 
 ### 7.1 Feasibility
 
-`checkFeasibility(exercise, profile, catalog) → { status, reasons[], missing[] }`
+`checkFeasibility(exercise, profile, catalog) → { status, reasons[], notes[] }`
 
 | Status | Meaning |
 |---|---|
-| `feasible` | All checks pass |
+| `feasible` | All checks pass. `notes` may hold localized, non-blocking notes (e.g. check overhead clearance) |
 | `infeasible` | At least one check fails; `reasons` explains each (localized) |
-| `needs-info` | A check depends on an unmeasured parameter; `missing` lists what to measure and how |
 
 Checks, in order:
 
@@ -295,15 +302,20 @@ Checks, in order:
 2. Required attachments are owned and fit an owned capability.
 3. Not in the user's `exclusions`.
 4. **Geometry:** the exercise's frames are posed at the profile's stature by `lib/figure/pose` and validated
-   against the profile's measurements: ceiling clearance (head, hands, implements + margin), bar travel versus
-   the lower and upper stops, bench fit inside the rack, and the joint range-of-motion limits.
+   against the profile's values, or the typical ones: ceiling clearance (head, hands, implements + margin), bar
+   travel (bar-centre heights) versus the lower and upper stops, bench fit inside the rack, and the joint
+   range-of-motion limits.
 
-Unknown inputs never pass silently:
+Unknown inputs use typical values instead of blocking the plan (D12):
 
-- Unknown stature → every geometry check returns `needs-info` (the wizard asks for stature first).
-- Unknown ceiling height → assume a 210 cm ceiling; exercises whose envelope plus margin exceeds that are
-  `needs-info`, and the rest pass.
-- An unmeasured equipment parameter → only the checks that depend on it return `needs-info`.
+- Unknown stature → pose at a typical adult stature (175 cm); figures and checks say "typical height".
+- Unknown ceiling height → assume a 240 cm ceiling. Exercises whose envelope plus margin exceeds it stay
+  plannable but carry a localized "check overhead clearance" note.
+- An unmeasured equipment parameter → the equipment's `illustrativeDefaults` are used; the build guarantees one
+  for every parameter a geometry check reads (§5.1).
+
+Every input can be defaulted, so there is no "needs info" status in v1. A later version that adds an input
+without a typical value would add one.
 
 `limitations` never change feasibility. They affect ranking and add safety notes.
 
@@ -313,8 +325,8 @@ Unknown inputs never pass silently:
 
 For each slot in each day:
 
-1. Candidates are exercises whose pattern matches and whose feasibility is `feasible`.
-   (`needs-info` candidates are listed separately with what to measure.)
+1. Candidates are exercises whose pattern matches and whose feasibility is `feasible`. A pick carries its
+   feasibility `notes` before any limitation safety notes.
 2. A user override for that slot wins if it is still feasible. Otherwise it is dropped with a notice.
 3. Ranking (highest first, deterministic tie-break by id):
    - +3 same station as the previous pick of the day (fewer transitions)
@@ -322,6 +334,9 @@ For each slot in each day:
    - −3 for each declared limitation whose joint has `high` stress
    - −2 already used earlier in the week for another slot
 4. An unfillable slot stays in the week as an empty slot with reasons and "what would unlock it".
+
+The `Week` also lists its `assumptions`: localized messages saying which typical values stood in for unknown
+inputs (a typical height, an assumed ceiling), so the planner can say "planned for a typical height".
 
 ### 7.3 Time estimate and budget
 
@@ -337,10 +352,12 @@ then trims sets on priority-2 slots.
 `shortSession(day)` keeps up to three priority-1 slots at 2 sets each with RIR ≥ 3. It is used for poor sleep,
 little time or incomplete recovery.
 
-### 7.5 Personal setup numbers
+### 7.5 Personal setup numbers — deferred (D12)
 
-When a station's `holeNumbering` is measured, the planner converts each exercise's descriptive setup heights into
-the nearest hole number for the user's stature. For example, `pulley: chest` becomes chest height from the pose
+Not in v1: setups are described in words only, and v1 has no hole-numbering parameters. Kept for a later
+version, where it applies only if the user enters measurements: that version would add a `holeNumbering`
+parameter (and a `pulleyHoleRange` for adjustable carriages), and when it is measured the planner converts each
+exercise's descriptive setup heights into the nearest hole number for the user's stature. For example, `pulley: chest` becomes chest height from the pose
 layer's standing skeleton, then the nearest hole, shown as "≈ hole 17 (chest height)". The same applies to J-hooks
 and safety catches. Hole numbers appear only in personal views and the PDF. If the ideal height is outside the
 carriage's `pulleyHoleRange`, the planner shows the nearest reachable hole and flags it.
@@ -419,7 +436,7 @@ Every route exists under `/en/` and `/zh/`. The base path is `/ai_health/`.
 | `/` | Picks a locale from the browser language (with plain links as fallback) |
 | `/[lang]/` | Home: one card per registered area |
 | `/[lang]/fitness/` | Fitness overview |
-| `/[lang]/fitness/equipment/` and `/[id]/` | Equipment module: what it is; parts and accessories (labeled 3D view); safe adjustment (hooks, catches, pulley pins, stops); how to measure each parameter; supported exercises grouped by pattern, with ✅ ❌ ❓ badges when a profile exists |
+| `/[lang]/fitness/equipment/` and `/[id]/` | Equipment module: what it is; parts and accessories (labeled 3D view); safe adjustment (hooks, catches, pulley pins, stops); how to measure each parameter; supported exercises grouped by pattern, with ✅ ❌ badges when a profile exists |
 | `/[lang]/fitness/exercises/` and `/[id]/` | Library with filters (muscle, pattern, equipment, "fits my setup"). Exercise page: 3 frames + viewer, setup, dose guidance, RIR target, cues, mistakes, warm-up, alternatives, safety notes |
 | `/[lang]/fitness/guide/[section]` | The eight guide sections. Each shows the exercises in the current plan by default, with a toggle for all |
 | `/[lang]/fitness/planner/` | Wizard → template → generated week → swaps → export |
@@ -429,8 +446,8 @@ Every route exists under `/en/` and `/zh/`. The base path is `/ai_health/`.
 
 ### 9.1 Planner flow
 
-1. **Wizard** (first visit, editable later): stature, ceiling height, owned equipment and attachments, equipment
-   measurements (each may be "not measured yet"), limitations, session length, template.
+1. **Wizard** (first visit, editable later): owned equipment and attachments, session length, template, and
+   optional stature, ceiling height and limitations. No equipment measurements are asked for (D12).
 2. **Week view:** a compact overview, then detailed days. Each pick shows why it was chosen and has a ⇄ swap that
    lists only feasible alternatives. Also shown: excluded exercises with reasons, the time estimate and any
    over-budget warning.
@@ -495,7 +512,7 @@ analytics.
 
 | Layer | Tool | Coverage |
 |---|---|---|
-| Engine | Vitest | Feasibility tri-state for every check, ranking, overrides, unfillable slots, time estimates, fit-to-time, short session |
+| Engine | Vitest | Feasibility (feasible / infeasible, typical-value fallbacks) for every check, ranking, overrides, unfillable slots, time estimates, fit-to-time, short session |
 | Pose / geometry | Vitest | IK accuracy, rail solver, ROM limits, every validator (positive and negative fixtures) |
 | Profile | Vitest | Schema, migrations, import error messages, backup-on-corruption |
 | i18n | Vitest + build | Dictionary parity, `I18n` completeness, MDX pairs |
@@ -544,9 +561,8 @@ and M1. Later plans are written after the M1 gate, because the spike may refine 
 
 1. **Photos** of the home setup (received 2026-09-29 in a private session; used as geometry reference only).
    Still useful: a side view of the Smith rails and a view of the bench inside the rack.
-2. **Measurements:** the parameters listed in §5.1 (starting with the hole numbering, lowest Smith bar height,
-   pull-up bar height and ceiling above it, inner depth and width) plus bench seat height, backrest length and
-   available backrest angles. Any can be marked "not measured yet".
+2. ~~Measurements~~ — not needed (D12, 2026-09-30): the site teaches general movements for each device type,
+   using typical dimensions.
 3. **Screening answers** (chat only) before M5 program content is finalized.
 
 Answered 2026-09-29: small tools, roller hold-down uses (all three) and spotter arms for free-barbell work.
