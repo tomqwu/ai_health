@@ -22,6 +22,7 @@ jobs:
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
+    # Room for a cold figure render (about 4–8 min) plus the build.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
@@ -34,6 +35,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      # Pre-rendered frames are cached by content hash (D11): the key lists every image's hash, so an
+      # unchanged figure is restored instead of rendered; a partial hit restores the newest cache and
+      # renders only what changed.
+      - run: npm run figures:keys
+      - uses: actions/cache@v6
+        with:
+          path: .cache/figures
+          key: figures-${{ hashFiles('figure-keys.txt') }}
+          restore-keys: figures-
       - run: npm run render:figures
       - run: npm run build
       - uses: actions/upload-pages-artifact@v5

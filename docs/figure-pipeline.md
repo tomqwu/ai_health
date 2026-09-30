@@ -48,11 +48,12 @@ npx vitest run tests/assets  # model budget, skeleton sync, and the real-rig Smi
 
 ## Rendering
 
-- `npm run render:figures` starts `astro dev` on port 4329, opens `/render/figure/` in headless Chromium with software WebGL (`SOFTWARE_WEBGL_ARGS` in `scripts/lib/browser.ts`, shared with `playwright.config.ts`), screenshots each frame, composites the movement arrow, and writes WebP files. It fails if a frame looks blank or the page throws.
+- `npm run render:figures` renders every figure frame into `public/figures/<id>/frame-<n>.webp` and every equipment model into `public/figures/equipment/<id>.webp`. Each image is cached in `.cache/figures/<key>/` (git-ignored) under a content hash (`scripts/lib/figureKeys.ts`): the renderer's source files, the versions of three.js, Playwright, its Chromium build and sharp, the human model and the render settings, plus everything the figure draws (camera, fixed equipment, each frame's bone rotations, root, props and arrow at 175 cm with illustrative equipment). Unchanged images are copied from the cache; if nothing changed, no browser starts. `--force` renders everything.
+- For the rest it starts `astro dev` on port 4329, opens `/render/figure/` once in headless Chromium with software WebGL (`SOFTWARE_WEBGL_ARGS` in `scripts/lib/browser.ts`, shared with `playwright.config.ts`), renders each job on the same page, composites the movement arrow (D11) and writes WebP. It fails if an image looks blank or the page throws.
+- CI and the deploy workflow run `npm run figures:keys` (the list of keys, `figure-keys.txt`), restore `.cache/figures` with `actions/cache` keyed on that list (falling back to the newest cache), then `npm run render:figures`. A change to one figure re-renders its three frames; a change to `scene3d` re-renders everything.
 - Run `npx playwright install chromium` once per machine first.
 - Astro 7 puts `dev` and `preview` in the background when it detects an AI agent. `render:figures` and the Playwright web server pass `--ignore-lock` so their servers stay in the foreground and are stopped cleanly. `npm run dev` and `npm run preview` do not; under an agent, add it yourself (`npm run dev -- --ignore-lock`). If a server is left running, stop it with `npx astro dev stop` (or `npx astro preview stop`).
-- CI and the deploy workflow run `render:figures` before building, so `public/figures/` is never committed.
-- `npm run test:e2e` builds the site and runs Playwright against `astro preview`. Locally, run `npm run render:figures` first: the spike page's frame images come from `public/figures/`.
+- `public/figures/` is never committed. `npm run test:e2e` builds the site and runs Playwright against `astro preview`; locally, run `npm run render:figures` first.
 
 ## The interactive viewer
 
