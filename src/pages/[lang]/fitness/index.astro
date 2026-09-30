@@ -1,11 +1,14 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { requireLocale, localeStaticPaths, t } from '../../../lib/i18n';
+import { loadCatalog } from '../../../catalog';
 
 export function getStaticPaths() {
   return localeStaticPaths();
 }
 const lang = requireLocale(Astro.params.lang);
+// Loading the catalog cross-checks all content; a broken reference fails the build (spec §14).
+await loadCatalog();
 ---
 <BaseLayout lang={lang} title={t(lang, 'fitness.title')} description={t(lang, 'area.fitness.summary')}>
   <h1>{t(lang, 'fitness.title')}</h1>
