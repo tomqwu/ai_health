@@ -61,16 +61,28 @@ export function turnFromRest(sk: SkeletonDef, w: WorldPose, bone: string): Quat 
 }
 
 /**
- * Foot contact points, posed: under the ball of the foot and under the heel (on the floor at rest).
- * `s` is the skeleton scale factor, `k` = stature ÷ 175.
+ * How far the toe tip reaches past the ball of the foot (cm at 175 cm; scaled by stature ÷ 175). A typical
+ * adult foot is about 15% of stature (26 cm at 175 cm) with the ball at about 73% of its length from the
+ * heel, which leaves about 7 cm of toes. The skeleton ends at the ball (`ball_l`/`ball_r` are leaf bones),
+ * so the toes are modelled by this one point.
  */
-export function footPoints(sk: SkeletonDef, w: WorldPose, side: Side, s: number, k: number): { ball: Vec3; heel: Vec3 } {
+export const TOE_LENGTH_CM = 7;
+
+/**
+ * Foot contact points, posed: under the ball of the foot and under the heel (on the floor at rest), and
+ * the toe tip, `TOE_LENGTH_CM` past the ball at sole level along the toes (the `ball_` bone: in line with
+ * the foot, or along the surface for a raised heel). `s` is the skeleton scale factor, `k` = stature ÷ 175.
+ */
+export function footPoints(sk: SkeletonDef, w: WorldPose, side: Side, s: number, k: number): { ball: Vec3; heel: Vec3; toe: Vec3 } {
   const rest = restPose(sk, s);
   const foot = rest[`foot_${side}`]!.position;
   const ball = rest[`ball_${side}`]!.position;
   const turn = turnFromRest(sk, w, `foot_${side}`);
   const at = (p: Vec3) => add(w[`foot_${side}`]!.position, rotate(turn, sub(p, foot)));
-  return { ball: at([ball[0], 0, ball[2]]), heel: at([foot[0], 0, foot[2] - 4 * k]) };
+  const ballSole = at([ball[0], 0, ball[2]]);
+  const toesRest = normalize([ball[0] - foot[0], 0, ball[2] - foot[2]]);
+  const toe = add(ballSole, scale(rotate(turnFromRest(sk, w, `ball_${side}`), toesRest), TOE_LENGTH_CM * k));
+  return { ball: ballSole, heel: at([foot[0], 0, foot[2] - 4 * k]), toe };
 }
 
 /** Capsules for the posed body. `s` is the skeleton scale factor, `k` = stature ÷ 175. */

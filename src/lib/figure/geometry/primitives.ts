@@ -155,3 +155,47 @@ export function surfaceSamples(p: Primitive): Vec3[] {
 export function penetrationDepth(a: Primitive, b: Primitive): number {
   return Math.max(0, ...surfaceSamples(a).map((s) => -signedDistance(b, s)));
 }
+
+/** A primitive's smallest extent (cm): the detail an overlap lattice must resolve. */
+function thickness(p: Primitive): number {
+  if (p.kind === 'box') return Math.min(...p.size);
+  if (p.kind === 'sphere') return p.capBelowY === undefined ? 2 * p.radius : Math.min(2 * p.radius, p.center[1] + p.radius - p.capBelowY);
+  return Math.min(2 * p.radius, length(sub(p.end, p.start)));
+}
+
+/** Most lattice points one overlap test visits: past it the spacing grows (at 1 cm, an overlap box over about 18 cm each way). */
+const OVERLAP_LATTICE_MAX = 6000;
+
+/**
+ * How deep two primitives overlap (cm, ≥ 0), the same both ways: the larger of how far either one's
+ * surface samples reach into the other (`penetrationDepth`, which sees a corner poking in) and the
+ * diameter of the largest ball inside both. The ball is found on a lattice through the overlap of the
+ * two bounding boxes, spaced a quarter of the thinner primitive's thickness (0.25–1 cm), so a thin rail,
+ * bar or tube through a thick implement is caught wherever it pierces it; sparse surface samples miss it
+ * when it passes between them. Signed distances are exact, so the lattice underestimates the ball's
+ * radius by at most √3/2 of its spacing.
+ */
+export function overlapDepth(a: Primitive, b: Primitive): number {
+  const A = aabbOf(a);
+  const B = aabbOf(b);
+  if (!aabbOverlap(A, B)) return 0;
+  const lo = [0, 1, 2].map((i) => Math.max(A.min[i]!, B.min[i]!));
+  const ext = [0, 1, 2].map((i) => Math.min(A.max[i]!, B.max[i]!) - lo[i]!);
+  let step = Math.min(1, Math.max(0.25, Math.min(thickness(a), thickness(b)) / 4));
+  const countsAt = (st: number) => ext.map((e) => Math.floor(e / st) + 1);
+  while (countsAt(step).reduce((m, n) => m * n, 1) > OVERLAP_LATTICE_MAX) step *= 1.25;
+  const n = countsAt(step);
+  // The lattice is centred in the overlap box.
+  const start = [0, 1, 2].map((i) => lo[i]! + (ext[i]! - (n[i]! - 1) * step) / 2);
+  let inside = 0;
+  for (let i = 0; i < n[0]!; i++) {
+    for (let j = 0; j < n[1]!; j++) {
+      for (let k = 0; k < n[2]!; k++) {
+        const point: Vec3 = [start[0]! + i * step, start[1]! + j * step, start[2]! + k * step];
+        const inA = -signedDistance(a, point);
+        if (inA > inside) inside = Math.max(inside, Math.min(inA, -signedDistance(b, point)));
+      }
+    }
+  }
+  return Math.max(penetrationDepth(a, b), penetrationDepth(b, a), 2 * inside);
+}
