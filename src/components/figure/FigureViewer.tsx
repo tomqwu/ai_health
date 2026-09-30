@@ -116,9 +116,12 @@ export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: P
     if (!playing || !scene) return;
     setArrow(null);
     let raf = 0;
-    const start = performance.now();
+    // Time from the first rAF timestamp, not performance.now(): rAF passes the frame's start time,
+    // which can be earlier than "now" in this effect and would make `total` negative.
+    let start: number | undefined;
     const tick = (now: number) => {
-      const total = (now - start) / SEGMENT_MS;
+      start ??= now;
+      const total = Math.max(0, (now - start) / SEGMENT_MS);
       const seg = Math.floor(total) % (PLAY_ORDER.length - 1);
       const eased = 0.5 - Math.cos(Math.PI * (total - Math.floor(total))) / 2;
       scene.showBetween(PLAY_ORDER[seg]!, PLAY_ORDER[seg + 1]!, eased);

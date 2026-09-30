@@ -52,6 +52,27 @@ test('frame buttons switch the pose', async ({ page }) => {
   await expect.poll(() => pixelSignature(canvas)).not.toBe(before);
 });
 
+test('Play animates the figure without errors and Pause stops it', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/ai_health/en/dev/figure-spike/');
+  await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator('svg.figure-overlay')).toBeVisible(); // frame 0 has been rendered
+  const canvas = page.locator('canvas.figure-canvas');
+  const before = await pixelSignature(canvas);
+
+  await page.getByRole('button', { name: en['figure.play'], exact: true }).click();
+  const pause = page.getByRole('button', { name: en['figure.pause'], exact: true });
+  await expect(pause).toBeVisible();
+  await page.waitForTimeout(1200); // about one segment of the loop
+  expect(errors).toEqual([]);
+  expect(await pixelSignature(canvas)).not.toBe(before);
+
+  await pause.click();
+  await expect(page.getByRole('button', { name: en['figure.play'], exact: true })).toBeVisible();
+  await expect(pause).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('shows the error state and fallback images when the model fails to load', async ({ page }) => {
   await page.route('**/models/human.glb', (route) => route.abort());
   await page.goto('/ai_health/en/dev/figure-spike/');

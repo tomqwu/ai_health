@@ -65,6 +65,9 @@ export async function mountFigure(
     view,
     showFrame: (i) => show(keyframes[i]!),
     showBetween: (a, b, t) => {
+      const n = spec.frames.length;
+      const valid = (i: number) => Number.isInteger(i) && i >= 0 && i < n;
+      if (!valid(a) || !valid(b)) throw new RangeError(`showBetween(${a}, ${b}): frame indices must be integers in 0..${n - 1}`);
       const fa = spec.frames[a]!;
       const fb = spec.frames[b]!;
       return show(
