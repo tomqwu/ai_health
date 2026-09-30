@@ -188,13 +188,16 @@ export default function FigureViewer({ lang, modelUrl, figure, fallbackImages, s
 
   useEffect(() => {
     const scene = sceneRef.current;
-    if (!playing || !scene) return;
+    // Re-runs when the scene is rebuilt (a new figure or height sets status back through 'loading'), so Play
+    // always drives the current scene and never a disposed one.
+    if (!playing || status !== 'ready' || !scene) return;
     showArrow(null);
     let raf = 0;
     // Time from the first rAF timestamp, not performance.now(): rAF passes the frame's start time,
     // which can be earlier than "now" in this effect and would make `total` negative.
     let start: number | undefined;
     const tick = (now: number) => {
+      if (sceneRef.current !== scene) return; // the scene was replaced or disposed: stop drawing to it
       start ??= now;
       const total = Math.max(0, (now - start) / SEGMENT_MS);
       const seg = Math.floor(total) % (playOrder.length - 1);
@@ -205,7 +208,7 @@ export default function FigureViewer({ lang, modelUrl, figure, fallbackImages, s
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, playOrder]);
+  }, [playing, playOrder, status]);
 
   const labels = figure.frames.map((f) => f.label[lang]);
   const canvasLabel = `${figure.name[lang]} — ${playing ? t(lang, 'figure.animating') : labels[frame]}`;

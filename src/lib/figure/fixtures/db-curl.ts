@@ -15,7 +15,7 @@ export const DB_CURL: PoseFigureSpec = {
       label: { en: 'Start', zh: '起始' },
       cue: { en: 'Arms long, palms forward, elbows by your sides', zh: '手臂伸直，掌心向前，肘部贴近身体' },
       trunk: { hips: { bodyCm: [0, 94.4, 0] } },
-      arms: bothArms({ to: { from: 'body.shoulder_l', bodyCm: [9, -57, 11] }, elbow: [0, 0, -1], hand: { grip: 'bar', axis: [1, 0, 0], palm: [0, 0, 1] } }),
+      arms: bothArms({ to: { from: 'body.shoulder_l', bodyCm: [10, -57, 11] }, elbow: [0, 0, -1], hand: { grip: 'bar', axis: [1, 0, 0], palm: [0, 0, 1] } }),
       legs: bothLegs(stance),
       props: { dumbbells: ['l', 'r'] },
       arrow: { track: 'hand_l', toward: 1, offsetCm: [12, 0, 6] },
