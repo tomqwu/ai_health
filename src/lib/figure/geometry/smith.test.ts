@@ -112,6 +112,42 @@ describe('buildSmith', () => {
   });
 });
 
+describe('buildSmith connects the rails to the frame', () => {
+  const EPS = 1e-9;
+  const touches = (a: ReturnType<typeof aabbOf>, b: ReturnType<typeof aabbOf>) =>
+    [0, 1, 2].every((i) => a.min[i]! <= b.max[i]! + EPS && b.min[i]! <= a.max[i]! + EPS);
+  const inside = (pt: readonly number[], box: ReturnType<typeof aabbOf>) =>
+    [0, 1, 2].every((i) => pt[i]! >= box.min[i]! - EPS && pt[i]! <= box.max[i]! + EPS);
+
+  for (const q of [P, { ...P, railZCm: -10, railHalfSpacingCm: 45 }]) {
+    const built = buildSmith(q, { barHeightCm: 120, catchHeightCm: 90 });
+    it(`hangs both rails from a top cross-member joined to the side beams (rail z ${q.railZCm}, ±${q.railHalfSpacingCm})`, () => {
+      const top = aabbOf(byId(built, 'beam-rail-top'));
+      for (const side of ['left', 'right']) {
+        const rail = byId(built, `rail-${side}`);
+        if (rail.kind !== 'cylinder') throw new Error('rail must be a cylinder');
+        expect(inside(rail.end, top), `rail-${side} top`).toBe(true);
+        expect(touches(top, aabbOf(byId(built, `beam-top-${side}`))), `beam-top-${side}`).toBe(true);
+      }
+    });
+    it(`stands each rail on a foot joined to its floor base (rail z ${q.railZCm}, ±${q.railHalfSpacingCm})`, () => {
+      for (const side of ['left', 'right']) {
+        const rail = byId(built, `rail-${side}`);
+        if (rail.kind !== 'cylinder') throw new Error('rail must be a cylinder');
+        const foot = aabbOf(byId(built, `base-rail-${side}`));
+        expect(inside(rail.start, foot), `rail-${side} bottom`).toBe(true);
+        expect(touches(foot, aabbOf(byId(built, `base-${side}`))), `base-${side}`).toBe(true);
+      }
+    });
+  }
+  it('keeps the floor between the rails clear for the lifter\'s feet', () => {
+    const stance = { min: [-(P.railHalfSpacingCm - P.uprightSizeCm), 0, -P.rackInnerDepthCm / 2], max: [P.railHalfSpacingCm - P.uprightSizeCm, 30, P.rackInnerDepthCm / 2] } as const;
+    for (const part of buildSmith(P, { barHeightCm: P.highestBarHeightCm })) {
+      expect(aabbOverlap(aabbOf(part), stance), part.id).toBe(false);
+    }
+  });
+});
+
 describe('smithProblems', () => {
   it('accepts the illustrative machine at every bar and catch height in range', () => {
     expect(smithProblems(P)).toEqual([]);

@@ -172,6 +172,16 @@ export function buildSmith(p: SmithParams, state: SmithState): Primitive[] {
     out.push({ kind: 'box', id: `base-${tag}`, center: [sx * halfW, baseHeight(p) / 2, 0], size: [u, baseHeight(p), 2 * halfD + u], surface: 'frame' });
     const rx = sx * p.railHalfSpacingCm;
     out.push({ kind: 'cylinder', id: `rail-${tag}`, start: [rx, p.railBottomCm, p.railZCm], end: [rx, railTop(p), p.railZCm], radius: p.railRadiusCm, surface: 'chrome' });
+    // Rail foot: a short floor bracket from under the rail out to the side base (never across the stance).
+    const footInner = p.railHalfSpacingCm - u / 2;
+    const footOuter = p.rackInnerWidthCm / 2;
+    out.push({
+      kind: 'box',
+      id: `base-rail-${tag}`,
+      center: [(sx * (footInner + footOuter)) / 2, baseHeight(p) / 2, p.railZCm],
+      size: [footOuter - footInner, baseHeight(p), u],
+      surface: 'frame',
+    });
     const cw = p.carriageWidthCm;
     out.push({ kind: 'box', id: `carriage-${tag}`, center: [rx, y, p.railZCm], size: [cw, p.carriageHeightCm, cw], surface: 'carriage' });
     const [sw, sh] = [p.stopBlockWidthCm, p.stopBlockHeightCm];
@@ -190,6 +200,8 @@ export function buildSmith(p: SmithParams, state: SmithState): Primitive[] {
       surface: 'plate',
     });
   }
+  // Top cross-member over the rails, between the side top beams; both rails hang from it.
+  out.push({ kind: 'box', id: 'beam-rail-top', center: [0, h - u / 2, p.railZCm], size: [p.rackInnerWidthCm, u, u], surface: 'frame' });
   const barHalf = p.railHalfSpacingCm + p.sleeveLengthCm;
   out.push({ kind: 'cylinder', id: 'bar', start: [-barHalf, y, p.railZCm], end: [barHalf, y, p.railZCm], radius: p.barRadiusCm, surface: 'chrome' });
   return out;
