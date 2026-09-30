@@ -1,0 +1,53 @@
+---
+import skeletonJson from '../../lib/figure/pose/skeleton.json';
+import type { SkeletonDef } from '../../lib/figure/pose/skeleton';
+import { solveSmithSquat } from '../../lib/figure/pose/smithSquat';
+import { jointAngles, validateSmithSquat } from '../../lib/figure/pose/validate';
+import { ILLUSTRATIVE_SMITH } from '../../lib/figure/geometry/smith';
+import { SMITH_SQUAT } from '../../lib/figure/fixtures/smith-squat';
+import { t } from '../../lib/i18n';
+import type { Locale } from '../../lib/i18n/locales';
+import './figure.css';
+
+interface Props { lang: Locale }
+const { lang } = Astro.props;
+const sk = skeletonJson as unknown as SkeletonDef;
+const deg = (n: number) => `${Math.round(n) || 0}°`;
+const STATURES = [150, 165, 175, 190, 200];
+const rows = STATURES.flatMap((statureCm) =>
+  SMITH_SQUAT.frames.map((frame) => {
+    const sol = solveSmithSquat(sk, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
+    const a = jointAngles(sol.world, 'l');
+    return {
+      statureCm,
+      label: frame.label[lang],
+      findings: validateSmithSquat(sk, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: SMITH_SQUAT.barRestOffsetCm }),
+      angles: `${t(lang, 'angle.trunk')} ${deg(sol.trunkDeg)} · ${t(lang, 'angle.hip')} ${deg(a.hipFlexDeg)} · ${t(lang, 'angle.knee')} ${deg(a.kneeFlexDeg)} · ${t(lang, 'angle.elbow')} ${deg(a.elbowFlexDeg)}`,
+    };
+  }),
+);
+---
+<table class="spike-checks">
+  <thead>
+    <tr>
+      <th>{t(lang, 'spike.check.stature')}</th>
+      <th>{t(lang, 'spike.check.frame')}</th>
+      <th>{t(lang, 'spike.check.angles')}</th>
+      <th>{t(lang, 'spike.check.result')}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {rows.map((r) => (
+      <tr>
+        <td>{r.statureCm} cm</td>
+        <td>{r.label}</td>
+        <td>{r.angles}</td>
+        <td>
+          {r.findings.length === 0
+            ? <span class="pass">✓ {t(lang, 'spike.check.pass')}</span>
+            : <span class="fail">✗ {t(lang, 'spike.check.fail')}: {r.findings.map((f) => f.check).join(', ')}</span>}
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</table>

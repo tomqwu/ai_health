@@ -1,0 +1,26 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import FigureViewer from '../../../components/figure/FigureViewer';
+import FigureFrames from '../../../components/figure/FigureFrames.astro';
+import SpikeChecks from '../../../components/figure/SpikeChecks.astro';
+import { SMITH_SQUAT } from '../../../lib/figure/fixtures/smith-squat';
+import { isLocale, localeStaticPaths, t } from '../../../lib/i18n';
+import { withBase } from '../../../lib/site';
+
+export function getStaticPaths() {
+  return localeStaticPaths();
+}
+const { lang } = Astro.params;
+if (!isLocale(lang)) throw new Error(`Unknown locale: ${lang}`);
+const images = SMITH_SQUAT.frames.map((_, i) => withBase(`figures/${SMITH_SQUAT.id}/frame-${i}.webp`));
+---
+<BaseLayout lang={lang} title={t(lang, 'spike.title')} noindex>
+  <h1>{t(lang, 'spike.title')}</h1>
+  <p class="lead">{t(lang, 'spike.intro')}</p>
+  <h2>{t(lang, 'spike.viewer')}</h2>
+  <FigureViewer client:only="preact" lang={lang} modelUrl={withBase('models/human.glb')} spec={SMITH_SQUAT} fallbackImages={images} />
+  <h2>{t(lang, 'spike.frames')}</h2>
+  <FigureFrames lang={lang} spec={SMITH_SQUAT} images={images} />
+  <h2>{t(lang, 'spike.checks')}</h2>
+  <SpikeChecks lang={lang} />
+</BaseLayout>
