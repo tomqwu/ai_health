@@ -88,7 +88,7 @@ export function disposeMaterial(m: THREE.Material): void {
   m.dispose();
 }
 
-/** Release every GPU resource the stage owns, then drop the WebGL context. */
+/** Release every GPU resource the stage owns. The canvas stays reusable. */
 export function disposeStage(stage: Stage): void {
   const { scene, renderer } = stage;
   scene.traverse((o) => {
@@ -97,10 +97,9 @@ export function disposeStage(stage: Stage): void {
       for (const m of Array.isArray(o.material) ? o.material : [o.material]) disposeMaterial(m);
     }
     if (o instanceof THREE.SkinnedMesh) o.skeleton.dispose();
-    // Only some lights carry a shadow; the base Light type does not declare it.
-    if (o instanceof THREE.Light) (o as THREE.DirectionalLight).shadow?.map?.dispose();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (o instanceof THREE.Light) (o as any).shadow?.dispose();
   });
   scene.environment?.dispose(); // the PMREM render target's texture
-  renderer.dispose();
-  renderer.forceContextLoss();
+  renderer.dispose(); // keep the WebGL context alive so the canvas can be reused
 }
