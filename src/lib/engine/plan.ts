@@ -61,10 +61,10 @@ export interface Week {
   days: DayPlan[];
 }
 
-/** Reps charged per set: the top of the range, so estimates err long. */
-export const repsForTime = (reps: Reps): number => (Array.isArray(reps) ? reps[1] : 0);
-
-/** Seconds of work in one set. Holds use their seconds; unilateral exercises are done once per side. */
+/**
+ * Seconds of work in one set. A rep range is charged at its top, so estimates err long; holds use their
+ * seconds; unilateral exercises are done once per side.
+ */
 export function setWorkSec(reps: Reps, ex: Exercise): number {
   const perSide = Array.isArray(reps) ? reps[1] * ex.repSeconds : reps.seconds;
   return ex.tags.includes('unilateral') ? 2 * perSide : perSide;
