@@ -5,6 +5,7 @@ import type { Message } from '../i18n/format';
 import type { Profile } from '../profile/schema';
 import { checkFeasibility, type EngineOptions } from './feasibility';
 import { assumptions } from './geometry';
+import { compareIds } from './order';
 import { type DayPlan, type SlotPlan, type Week, withEstimate } from './plan';
 import type { Feasibility, Unlock } from './types';
 
@@ -53,7 +54,7 @@ export function rankCandidates(candidates: readonly Exercise[], ctx: RankContext
       }
       return { exercise, score, why };
     })
-    .sort((a, b) => b.score - a.score || a.exercise.id.localeCompare(b.exercise.id));
+    .sort((a, b) => b.score - a.score || compareIds(a.exercise.id, b.exercise.id));
 }
 
 /** Safety notes for a pick that loads a joint the user marked as sensitive (spec §7.1, §12). */
