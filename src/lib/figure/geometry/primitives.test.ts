@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fromAxisAngle } from '../math/quat';
-import { aabbOf, aabbOverlap, type Aabb, penetrationDepth, type Primitive, signedDistance } from './primitives';
+import { aabbOf, aabbOverlap, type Aabb, overlapDepth, penetrationDepth, type Primitive, signedDistance } from './primitives';
 
 const box = (center: [number, number, number], size: [number, number, number]): Primitive => ({
   kind: 'box',
@@ -84,5 +84,19 @@ describe('rotated boxes, capped spheres and distances', () => {
   it('measures how deep one primitive reaches into another', () => {
     expect(penetrationDepth(box([0, 0, 0], [2, 2, 2]), box([1.5, 0, 0], [2, 2, 2]))).toBeCloseTo(0.5);
     expect(penetrationDepth(box([0, 0, 0], [2, 2, 2]), box([5, 0, 0], [2, 2, 2]))).toBe(0);
+  });
+  it('measures an overlap both ways, catching a thin rod through a thick part wherever it pierces it', () => {
+    // A 1.5 cm rod through a 6 cm ball, 3 cm off its centre: the surface samples of each barely reach into the other.
+    const ball: Primitive = { kind: 'sphere', id: 's', center: [0, 0, 0], radius: 6, surface: 'rubber' };
+    const rod = cyl([3, -50, 0], [3, 30, 0], 1.5);
+    expect(Math.max(penetrationDepth(ball, rod), penetrationDepth(rod, ball))).toBeLessThan(0.5);
+    // The largest ball inside both is the rod's own section (3 cm across), less the lattice's error.
+    expect(overlapDepth(ball, rod)).toBeGreaterThan(2);
+    expect(overlapDepth(ball, rod)).toBeLessThanOrEqual(3 + 1e-9);
+    expect(overlapDepth(rod, ball)).toBeCloseTo(overlapDepth(ball, rod), 9);
+    // Never less than the one-way surface measure (a corner poking in), and nothing for parts apart or touching.
+    expect(overlapDepth(box([0, 0, 0], [2, 2, 2]), box([1.5, 0, 0], [2, 2, 2]))).toBeCloseTo(0.5);
+    expect(overlapDepth(box([0, 0, 0], [2, 2, 2]), box([2, 0, 0], [2, 2, 2]))).toBe(0);
+    expect(overlapDepth(ball, cyl([8, -50, 0], [8, 50, 0], 1.5))).toBe(0);
   });
 });

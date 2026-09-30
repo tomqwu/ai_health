@@ -1,6 +1,6 @@
-import { type Vec3, distance, dot, length, midpoint, normalize, sub } from '../math/vec3';
+import { type Vec3, add, distance, dot, length, midpoint, normalize, sub } from '../math/vec3';
 import type { Built } from '../geometry/built';
-import { aabbOf, penetrationDepth, type Primitive, signedDistance } from '../geometry/primitives';
+import { aabbOf, aabbOverlap, overlapDepth, type Primitive, signedDistance } from '../geometry/primitives';
 import type { SceneParams } from '../geometry/scene';
 import { bodyBottom, bodyCapsules, bodyTop, type Capsule, contactGap, footPoints, gripPoint, wristBendDeg } from './body';
 import type { Side } from './hands';
@@ -22,7 +22,7 @@ export const IMPLEMENT_IN_BODY_CM = 4;
  * Wrist bend (the hand's direction against its rest direction, both in the forearm's frame) the
  * validators accept: a hand holding something stays near neutral, a pressing hand even more so (bent-back
  * wrists under a press are a form fault); a hand flat on the floor or a pad bends back as far as a
- * push-up needs.
+ * push-up needs. A `free` hand (holding nothing) gets the `held` limit: decision 5 names only these three.
  */
 export const WRIST_MAX_DEG = { held: 30, press: 25, flat: 85 } as const;
 /** Limits on the authored trunk and neck (deg): a neutral spine and gaze, as figures teach. */
@@ -42,10 +42,15 @@ export interface PoseCheckContext {
   clearanceMarginCm?: number;
 }
 
+/** The props the body carries: solid implements and the Smith bar with its plates (not cables or handles). */
+function carriedProps(props: readonly Primitive[]): Primitive[] {
+  return props.filter((p) => SOLID_PROP.test(p.id) || SMITH_BAR_PART.test(p.id));
+}
+
 /** Highest point of the body and what it moves (cm): head, every capsule, held implements and the Smith bar with its plates (not cables or handles). */
 export function poseTop(sk: SkeletonDef, sol: PoseSolution, props: readonly Primitive[]): number {
   const caps = bodyCapsules(sk, sol.world, sol.scaleFactor, sol.k);
-  const carried = props.filter((p) => SOLID_PROP.test(p.id) || SMITH_BAR_PART.test(p.id));
+  const carried = carriedProps(props);
   return Math.max(headTop(sk, sol.world, sol.scaleFactor)[1], bodyTop(caps), ...carried.map((p) => aabbOf(p).max[1]));
 }
 
@@ -102,7 +107,7 @@ export function validatePose(sk: SkeletonDef, frame: PoseFrame, sol: PoseSolutio
       const surface = ctx.scene.surfaces[goal.on ?? 'floor'];
       if (surface?.kind === 'plane') {
         const lift = Math.abs(dot(sub(heel, surface.point), normalize(surface.normal)));
-        if (lift > 1.5) error('feet-flat', `heel_${side} is ${lift.toFixed(1)} cm off its surface`);
+        if (lift > CONTACT_TOLERANCE_CM) error('feet-flat', `heel_${side} is ${lift.toFixed(1)} cm off its surface`);
       }
     }
   }
@@ -138,7 +143,8 @@ export function validatePose(sk: SkeletonDef, frame: PoseFrame, sol: PoseSolutio
   out.push(...spineFindings(frame));
 
   // Floor and hanging.
-  // Feet count by their sole points (ball and heel); the rounded foot capsule dips when the foot tilts.
+  // Feet count by their sole points (ball, heel and toe tip); the rounded foot capsule dips when the foot
+  // tilts, and stops at the ball of the foot, where the skeleton ends.
   let low = bodyBottom(caps.filter((c) => !c.part.startsWith('foot_')));
   for (const side of ['l', 'r'] as const) {
     for (const p of Object.values(footPoints(sk, w, side, s, k))) if (p[1] < low.y) low = { part: `foot_${side}`, y: p[1] };
@@ -146,11 +152,13 @@ export function validatePose(sk: SkeletonDef, frame: PoseFrame, sol: PoseSolutio
   if (low.y < -CONTACT_TOLERANCE_CM) error('floor', `${low.part} reaches ${(-low.y).toFixed(1)} cm below the floor`);
   if (frame.hanging && low.y < HANG_CLEARANCE_CM) error('hang-clearance', `hanging, ${low.part} is only ${low.y.toFixed(1)} cm above the floor`);
 
-  // The Smith bar, re-derived from the hands that hold it.
+  // The Smith bar, re-derived from the hands that hold it, against the rail the scene draws.
   if (sol.smithBar) {
     const held = midpoint(gripPoint(w, 'l', gripKind(frame.arms.l), k), gripPoint(w, 'r', gripKind(frame.arms.r), k));
-    const offRail = Math.abs(held[2] - sol.smithBar[2]);
-    if (offRail > 0.5 || Math.abs(held[0]) > 0.5) error('bar-on-rail', `the hands hold the bar ${offRail.toFixed(1)} cm off the rail and ${Math.abs(held[0]).toFixed(1)} cm off centre`);
+    const rail = ctx.scene.anchors['smith.rail'] ?? sol.smithBar;
+    const offRail = Math.abs(held[2] - rail[2]);
+    const offCentre = Math.abs(held[0] - rail[0]);
+    if (offRail > 0.5 || offCentre > 0.5) error('bar-on-rail', `the hands hold the bar ${offRail.toFixed(1)} cm off the rail and ${offCentre.toFixed(1)} cm off centre`);
     const t = ctx.params.trainer;
     if (held[1] < t.lowestBarHeightCm || held[1] > t.highestBarHeightCm) {
       error('bar-travel', `bar at ${held[1].toFixed(0)} cm is outside ${t.lowestBarHeightCm}–${t.highestBarHeightCm} cm`);
@@ -160,19 +168,20 @@ export function validatePose(sk: SkeletonDef, frame: PoseFrame, sol: PoseSolutio
     if (catches && held[1] < catches[1] - 0.5) error('bar-travel', `bar at ${held[1].toFixed(0)} cm is below the safety catches at ${catches[1].toFixed(0)} cm`);
   }
 
-  // Bench against the rack; implements against the floor and the equipment.
+  // Bench against the rack; implements against the floor and the equipment. `overlapDepth` measures both
+  // ways, so a thin rail, bar or tube through a thick implement counts wherever it pierces it.
   const benchPrims = ctx.scene.prims.filter((p) => p.id.startsWith('bench-'));
   const frameParts = ctx.scene.prims.filter((p) => !p.id.startsWith('bench-'));
   if (ctx.scene.anchors['smith.rail']) {
     for (const bp of benchPrims) {
       for (const fp of frameParts) {
-        if (penetrationDepth(bp, fp) > 0.5 || penetrationDepth(fp, bp) > 0.5) error('bench-rack', `${bp.id} intersects ${fp.id}`);
+        if (overlapDepth(bp, fp) > 0.5) error('bench-rack', `${bp.id} intersects ${fp.id}`);
       }
     }
   }
   for (const ip of props.filter((p) => SOLID_PROP.test(p.id))) {
     if (aabbOf(ip).min[1] < -0.5) error('implement', `${ip.id} goes through the floor`);
-    for (const sp of ctx.scene.prims) if (penetrationDepth(ip, sp) > 0.5) error('implement', `${ip.id} intersects ${sp.id}`);
+    for (const sp of ctx.scene.prims) if (overlapDepth(ip, sp) > 0.5) error('implement', `${ip.id} intersects ${sp.id}`);
   }
 
   // The ceiling, when the room is known.
@@ -194,7 +203,7 @@ export function validatePose(sk: SkeletonDef, frame: PoseFrame, sol: PoseSolutio
   // Held implements against the body (hands and forearms hold them): a warning past 2 cm, and an error
   // past 4 cm, where the implement would pass through a limb (spec §12). A frame may declare a touch.
   const touches = frame.touches ?? [];
-  const held = props.filter((p) => SOLID_PROP.test(p.id) || SMITH_BAR_PART.test(p.id));
+  const held = carriedProps(props);
   for (const cap of caps.filter((c) => !/^(hand|forearm)_/.test(c.part))) {
     for (const prop of held) {
       if (touches.some((t) => t.part === cap.part && prop.id.startsWith(t.prop))) continue;
@@ -214,13 +223,22 @@ function footRestsOn(frame: PoseFrame, cap: Capsule, prim: Primitive, scene: Bui
   return scene.surfaces[on]?.primitive === prim.id;
 }
 
-/** How deep a capsule reaches into a primitive (cm, ≥ 0), sampled along its axis. */
+/** Spacing of the samples along a capsule's axis (cm): a thin bar between two samples is underestimated by at most a few mm. */
+const CAPSULE_SAMPLE_CM = 1;
+
+/** How deep a capsule reaches into a primitive (cm, ≥ 0), sampled along its axis every `CAPSULE_SAMPLE_CM`. */
 function capsuleDepth(c: Capsule, p: Primitive): number {
+  const r: Vec3 = [c.r, c.r, c.r];
+  if (!aabbOverlap({ min: sub(minOf(c.a, c.b), r), max: add(maxOf(c.a, c.b), r) }, aabbOf(p))) return 0;
+  const n = Math.max(6, Math.ceil(distance(c.a, c.b) / CAPSULE_SAMPLE_CM));
   let depth = 0;
-  for (let i = 0; i <= 6; i++) {
-    const t = i / 6;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
     const point: Vec3 = [c.a[0] + (c.b[0] - c.a[0]) * t, c.a[1] + (c.b[1] - c.a[1]) * t, c.a[2] + (c.b[2] - c.a[2]) * t];
     depth = Math.max(depth, c.r - signedDistance(p, point));
   }
   return depth;
 }
+
+const minOf = (a: Vec3, b: Vec3): Vec3 => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.min(a[2], b[2])];
+const maxOf = (a: Vec3, b: Vec3): Vec3 => [Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.max(a[2], b[2])];
