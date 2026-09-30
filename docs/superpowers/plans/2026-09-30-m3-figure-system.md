@@ -139,23 +139,23 @@ No code. The milestone "M3 Figure system" and its epic (#18) exist. Issue #74 (M
 
 | Task | Issue title | Labels | Issue # |
 |---|---|---|---|
-| 1 | Figure primitives, signed distances and the mesh builder | area:figures, type:feature | new |
-| 2 | Equipment builders: free weights, accessories, cardio machines, attachments | area:figures, type:feature | new |
-| 3 | Equipment builders: trainer, bench, scenes and the model registry | area:figures, type:feature | new |
-| 4 | Pose library: pose data and solver | area:figures, type:feature | new |
-| 5 | Pose library: validators | area:figures, type:feature | new |
-| 6 | Figure models, sweep and a viewer for any figure | area:figures, type:feature | new |
-| 7 | Cached pre-render pipeline in CI | area:figures, area:platform, type:feature | new |
-| 8 | Figure review pages and end-to-end tests | area:figures, type:feature | new |
-| 9 | Figures: bench and Smith presses | area:figures, type:content | new |
-| 10 | Figures: standing free weights | area:figures, type:content | new |
-| 11 | Figures: cable station | area:figures, type:content | new |
-| 12 | Figures: hanging and kneeling | area:figures, type:content | new |
-| 13 | Figures: floor and ball | area:figures, type:content | new |
+| 1 | Figure primitives, signed distances and the mesh builder | area:figures, type:feature | #82 |
+| 2 | Equipment builders: free weights, accessories, cardio machines, attachments | area:figures, type:feature | #83 |
+| 3 | Equipment builders: trainer, bench, scenes and the model registry | area:figures, type:feature | #84 |
+| 4 | Pose library: pose data and solver | area:figures, type:feature | #85 |
+| 5 | Pose library: validators | area:figures, type:feature | #86 |
+| 6 | Figure models, sweep and a viewer for any figure | area:figures, type:feature | #87 |
+| 7 | Cached pre-render pipeline in CI | area:figures, area:platform, type:feature | #88 |
+| 8 | Figure review pages and end-to-end tests | area:figures, type:feature | #89 |
+| 9 | Figures: bench and Smith presses | area:figures, type:content | #90 |
+| 10 | Figures: standing free weights | area:figures, type:content | #91 |
+| 11 | Figures: cable station | area:figures, type:content | #92 |
+| 12 | Figures: hanging and kneeling | area:figures, type:content | #93 |
+| 13 | Figures: floor and ball | area:figures, type:content | #94 |
 | 14 | Engine probes from the pose library; 3D model checks | area:fitness, area:figures, type:feature | #74 |
-| 15 | Owner review: the look of the M3 figures (controller only) | area:figures, gate:user-review | new |
+| 15 | Owner review: the look of the M3 figures (controller only) | area:figures, gate:user-review | #95 |
 | 15 | Elbow twist: the owner's choice of option (a), (b) or (c) | area:figures | #47 |
-| 16 | Figure docs and M3 exit | area:figures, type:docs | new |
+| 16 | Figure docs and M3 exit | area:figures, type:docs | #96 |
 
 - [ ] **Step 1: Create one issue per "new" row**
 
