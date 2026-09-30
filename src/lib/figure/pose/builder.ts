@@ -217,9 +217,21 @@ export class PoseBuilder {
     const upperRoll = opts.bendSide ? { restUp: rotate(bodyTurn, opts.bendSide), up: sub(reached, mid) } : opts.upperRoll;
     const upperWorld = this.aimRotation(upper, lower, parentRot, a, mid, upperRoll);
     const lowerHead = add(a, rotate(upperWorld, scale(dl.restLocalT, this.scaleFactor)));
-    const lowerWorld = this.aimRotation(lower, end, upperWorld, lowerHead, reached, opts.lowerRoll);
+    this.aimRotation(lower, end, upperWorld, lowerHead, reached, opts.lowerRoll);
+
+    // Commit. The lower bone is solved again from the committed upper bone as forward kinematics sees
+    // it (rig rotations are unit only to ~1e-8), so the result matches aiming the two bones in turn.
+    const before = this.local[upper]!;
     this.local[upper] = normalizeQuat(multiply(conjugate(parentRot), upperWorld));
-    this.local[lower] = normalizeQuat(multiply(conjugate(this.world()[upper]!.rotation), lowerWorld));
+    try {
+      const w2 = this.world();
+      const upperRot = w2[upper]!.rotation;
+      const lowerWorld = this.aimRotation(lower, end, upperRot, w2[lower]!.position, reached, opts.lowerRoll);
+      this.local[lower] = normalizeQuat(multiply(conjugate(upperRot), lowerWorld));
+    } catch (e) {
+      this.local[upper] = before;
+      throw e;
+    }
     return reached;
   }
 

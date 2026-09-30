@@ -69,4 +69,20 @@ describe('committed human model', () => {
       }
     }
   });
+  it('keeps the real-rig bottom frame where it was before #40 (175 cm)', () => {
+    // Recorded before the pose-robustness changes. The rig's rotations are unit only to ~1e-8, so a
+    // reordered computation can drift ~1e-5 cm and shift rendered pixels; this pins the exact result.
+    const recorded: Record<string, [number, number, number]> = {
+      lowerarm_l: [33.53210802447757, 79.01047122565174, -7.926390652420366],
+      hand_r: [-42.00000264045758, 103.46294990691753, -3.9999987224264424],
+      middle_03_l: [46.29438112059032, 111.1690134745823, 2.48426779087539],
+      calf_r: [-19.725202297913064, 48.19763469716158, 23.675250086279704],
+      head: [0, 113.41596514546777, 14.517814947292685],
+    };
+    const sol = solveSmithSquat(skeleton, SMITH_SQUAT, SMITH_SQUAT.frames[1]!, { statureCm: 175, railZCm: ILLUSTRATIVE_SMITH.railZCm });
+    for (const [bone, want] of Object.entries(recorded)) {
+      const got = sol.world[bone]!.position;
+      expect(Math.hypot(got[0] - want[0], got[1] - want[1], got[2] - want[2]), bone).toBeLessThan(1e-9);
+    }
+  });
 });
