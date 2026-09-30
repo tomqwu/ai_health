@@ -3,6 +3,7 @@
  * profile; a few concrete expectations pin the behaviour of each.
  */
 import { describe, expect, it } from 'vitest';
+import { formatMessage, type Message } from '../i18n/format';
 import type { Profile } from '../profile/schema';
 import { checkFeasibility, fitToTime, shortSession } from './index';
 import { buildWeek } from './week';
@@ -44,6 +45,22 @@ describe.each(Object.entries(PROFILES))('synthetic profile %s', (_name, make) =>
       for (const s of short.slots) {
         expect(s.sets).toBeLessThanOrEqual(2);
         if (s.rir !== undefined) expect(s.rir).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+  it('emits only messages that format in both languages', () => {
+    const emitted: Message[] = [
+      ...week.assumptions,
+      ...slots.flatMap((s) => [...s.why, ...s.notes, ...s.notices, ...(s.empty?.reasons ?? [])]),
+      ...[...catalog.exercises.values()].flatMap((ex) => {
+        const f = checkFeasibility(ex, profile, catalog);
+        return [...f.reasons.map((r) => r.message), ...f.notes];
+      }),
+    ];
+    expect(emitted.length).toBeGreaterThan(0);
+    for (const m of emitted) {
+      for (const locale of ['en', 'zh'] as const) {
+        for (const length of ['cm', 'in'] as const) expect(formatMessage(locale, m, { length }), `${locale} ${m.key}`).not.toMatch(/[{}]/);
       }
     }
   });
