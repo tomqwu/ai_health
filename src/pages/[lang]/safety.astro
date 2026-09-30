@@ -9,7 +9,7 @@ const lang = requireLocale(Astro.params.lang);
 const flags: MessageKey[] = ['safety.flag.chest', 'safety.flag.nerve', 'safety.flag.joint', 'safety.flag.dizzy'];
 const habits: MessageKey[] = ['safety.habit.warmup', 'safety.habit.stops', 'safety.habit.space', 'safety.habit.effort'];
 ---
-<BaseLayout lang={lang} title={t(lang, 'safety.title')}>
+<BaseLayout lang={lang} title={t(lang, 'safety.title')} description={t(lang, 'safety.intro')}>
   <article class="prose">
     <h1>{t(lang, 'safety.title')}</h1>
     <p class="lead">{t(lang, 'safety.intro')}</p>

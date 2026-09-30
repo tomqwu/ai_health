@@ -50,3 +50,21 @@ test.describe('phone width', () => {
     });
   }
 });
+
+test.describe('meta descriptions', () => {
+  for (const { code } of LOCALES) {
+    test(`/${code}/ pages each have their own description`, async ({ page }) => {
+      const description = async (path: string) => {
+        await page.goto(`/ai_health/${code}/${path}`);
+        return (await page.locator('meta[name="description"]').getAttribute('content')) ?? '';
+      };
+      const home = await description('');
+      expect(home.trim()).not.toBe('');
+      for (const path of ['fitness/', 'safety/', 'dev/figure-spike/']) {
+        const d = await description(path);
+        expect(d.trim(), path).not.toBe('');
+        expect(d, path).not.toBe(home);
+      }
+    });
+  }
+});
