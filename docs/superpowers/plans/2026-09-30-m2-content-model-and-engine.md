@@ -2330,7 +2330,9 @@ When CI is green: `gh pr merge --squash --delete-branch && git checkout main && 
 
 The only code that touches browser storage (spec §4.2). It keeps a corrupt profile under a timestamped backup key and falls back to memory when `localStorage` is missing or throws (spec §11).
 
-Owner decision 16: on a failed read the raw text is copied to `aih.profile.backup.<timestamp>` and `aih.profile` is removed, so the site starts clean and the backup is kept once.
+Storage errors never reach the caller (spec §11, data safety). `browserStorage()` checks availability with a read only (accessing `localStorage` and calling `getItem` throw in private or blocked modes); it never probes with a write, because a full quota would then hide a saved profile. Write, read and remove failures at runtime (quota, `SecurityError`) switch the store to memory for the rest of the session: `persistent` turns false, `save()` returns false and keeps the profile in memory, and nothing touches persistent storage again. So a corrupt profile whose backup could not be written stays in place and no later `save()` overwrites it, and a migrated profile whose re-save fails is still returned.
+
+Owner decision 16: on a failed read the raw text is copied to `aih.profile.backup.<timestamp>` and `aih.profile` is removed, so the site starts clean and the backup is kept once. `aih.profile` is removed only after the backup is written; a backup key already taken in the same millisecond gets a `-1`, `-2`… suffix instead of being overwritten.
 
 **Files:**
 - Create: `src/lib/profile/storage.ts`, `src/lib/profile/index.ts`
@@ -2338,7 +2340,7 @@ Owner decision 16: on a failed read the raw text is copied to `aih.profile.backu
 
 **Interfaces:**
 - Consumes: Task 6 (`parseProfile`, `FieldError`, `ProfileSchema`, `Profile`).
-- Produces: `PROFILE_KEY = 'aih.profile'`, `BACKUP_PREFIX = 'aih.profile.backup.'`, `KeyValueStorage`, `MemoryStorage` (+ `keys()`), `browserStorage(): KeyValueStorage | null`, `LoadResult = { status: 'empty' } | { status: 'ok'; profile; migratedFrom? } | { status: 'corrupt'; backupKey: string | null; errors }`, `class ProfileStore { constructor(storage | null, now?); readonly persistent: boolean; load(); save(profile); clear() }`, `openProfileStore()`; `src/lib/profile/index.ts` re-exports the module's public API.
+- Produces: `PROFILE_KEY = 'aih.profile'`, `BACKUP_PREFIX = 'aih.profile.backup.'`, `KeyValueStorage`, `MemoryStorage` (+ `keys()`), `browserStorage(): KeyValueStorage | null` (read-only availability check), `LoadResult = { status: 'empty' } | { status: 'ok'; profile; migratedFrom? } | { status: 'corrupt'; backupKey: string | null; errors }`, `class ProfileStore { constructor(storage | null, now?); get persistent(): boolean /* read-only; turns false for good after a storage error */; load(): LoadResult /* never throws */; save(profile): boolean /* true = persisted; throws only on an invalid profile */; clear(): boolean /* true = persisted */ }`, `openProfileStore()`; `src/lib/profile/index.ts` re-exports the module's public API.
 
 - [ ] **Step 1: Branch**
 
@@ -2350,11 +2352,39 @@ git checkout main && git pull && git checkout -b m2/<issue>-profile-storage
 
 ```ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { parseProfile } from './parse';
 import { defaultProfile, type Profile } from './schema';
-import { BACKUP_PREFIX, browserStorage, MemoryStorage, openProfileStore, PROFILE_KEY, ProfileStore } from './storage';
+import { BACKUP_PREFIX, browserStorage, type KeyValueStorage, MemoryStorage, openProfileStore, PROFILE_KEY, ProfileStore } from './storage';
+
+// Pass-through by default; one test swaps in a result that reports a migration (version 1 has none yet).
+vi.mock('./parse', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./parse')>();
+  return { ...actual, parseProfile: vi.fn(actual.parseProfile) };
+});
 
 const NOW = 1_790_000_000_000;
 const synthetic = (): Profile => ({ ...defaultProfile('en'), statureCm: 181, room: { ceilingHeightCm: 243.84, clearanceMarginCm: 10 } }); // 8 ft ceiling
+
+const quota = () => new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+const blocked = () => new DOMException('The operation is insecure.', 'SecurityError');
+
+/** Wraps `inner`, making the named operations throw. */
+function failing(inner: KeyValueStorage, fail: { get?: boolean; set?: boolean; remove?: boolean }): KeyValueStorage {
+  return {
+    getItem: (k) => {
+      if (fail.get) throw blocked();
+      return inner.getItem(k);
+    },
+    setItem: (k, v) => {
+      if (fail.set) throw quota();
+      inner.setItem(k, v);
+    },
+    removeItem: (k) => {
+      if (fail.remove) throw blocked();
+      inner.removeItem(k);
+    },
+  };
+}
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -2366,7 +2396,7 @@ describe('ProfileStore', () => {
   it('saves and loads under aih.profile', () => {
     const storage = new MemoryStorage();
     const store = new ProfileStore(storage);
-    store.save(synthetic());
+    expect(store.save(synthetic())).toBe(true);
     expect(storage.keys()).toEqual([PROFILE_KEY]);
     expect(store.load()).toEqual({ status: 'ok', profile: synthetic() });
   });
@@ -2374,6 +2404,12 @@ describe('ProfileStore', () => {
   it('refuses to save an invalid profile', () => {
     const store = new ProfileStore(new MemoryStorage());
     expect(() => store.save({ ...synthetic(), statureCm: 5 })).toThrow();
+  });
+
+  it('refuses an invalid profile even when storage is failing', () => {
+    const store = new ProfileStore(failing(new MemoryStorage(), { set: true }));
+    expect(() => store.save({ ...synthetic(), statureCm: 5 })).toThrow();
+    expect(store.persistent).toBe(true);
   });
 
   it('moves an invalid profile to a timestamped backup and keeps working', () => {
@@ -2398,25 +2434,120 @@ describe('ProfileStore', () => {
     expect(storage.getItem(`${BACKUP_PREFIX}${NOW}`)).toBe('{broken');
   });
 
+  it('never overwrites an earlier backup made in the same millisecond', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(`${BACKUP_PREFIX}${NOW}`, 'first');
+    storage.setItem(PROFILE_KEY, '{second');
+    expect(new ProfileStore(storage, () => NOW).load()).toMatchObject({ status: 'corrupt', backupKey: `${BACKUP_PREFIX}${NOW}-1` });
+    expect(storage.getItem(`${BACKUP_PREFIX}${NOW}`)).toBe('first');
+    expect(storage.getItem(`${BACKUP_PREFIX}${NOW}-1`)).toBe('{second');
+  });
+
   it('leaves the original in place when the backup cannot be written', () => {
     const storage = new MemoryStorage();
     storage.setItem(PROFILE_KEY, '{broken');
-    const full = { getItem: (k: string) => storage.getItem(k), removeItem: (k: string) => storage.removeItem(k), setItem: () => { throw new Error('QuotaExceededError'); } };
-    expect(new ProfileStore(full).load()).toMatchObject({ status: 'corrupt', backupKey: null });
+    const store = new ProfileStore(failing(storage, { set: true }));
+    expect(store.load()).toMatchObject({ status: 'corrupt', backupKey: null });
     expect(storage.getItem(PROFILE_KEY)).toBe('{broken');
+    expect(storage.keys()).toEqual([PROFILE_KEY]);
+  });
+
+  it('never overwrites a corrupt original that has no backup', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(PROFILE_KEY, '{broken');
+    let full = true;
+    const flaky: KeyValueStorage = {
+      getItem: (k) => storage.getItem(k),
+      removeItem: (k) => storage.removeItem(k),
+      setItem: (k, v) => {
+        if (full) throw quota();
+        storage.setItem(k, v);
+      },
+    };
+    const store = new ProfileStore(flaky);
+    expect(store.load()).toMatchObject({ status: 'corrupt', backupKey: null });
+    expect(store.persistent).toBe(false);
+    full = false; // space frees up later in the session
+    expect(store.save(synthetic())).toBe(false);
+    store.clear();
+    expect(storage.getItem(PROFILE_KEY)).toBe('{broken');
+    expect(storage.keys()).toEqual([PROFILE_KEY]);
+  });
+
+  it('keeps the backup and switches to memory when the original cannot be removed', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(PROFILE_KEY, '{broken');
+    const store = new ProfileStore(failing(storage, { remove: true }), () => NOW);
+    expect(store.load()).toMatchObject({ status: 'corrupt', backupKey: `${BACKUP_PREFIX}${NOW}` });
+    expect(storage.getItem(`${BACKUP_PREFIX}${NOW}`)).toBe('{broken');
+    expect(store.persistent).toBe(false);
+    expect(store.load()).toEqual({ status: 'empty' });
+  });
+
+  it('keeps a profile in memory when a save hits the quota', () => {
+    const storage = new MemoryStorage();
+    const store = new ProfileStore(failing(storage, { set: true }));
+    expect(store.persistent).toBe(true);
+    expect(store.save(synthetic())).toBe(false);
+    expect(store.persistent).toBe(false);
+    expect(store.load()).toEqual({ status: 'ok', profile: synthetic() });
+    expect(storage.keys()).toEqual([]);
+  });
+
+  it('returns a migrated profile when the re-save hits the quota', () => {
+    const storage = new MemoryStorage();
+    const older = JSON.stringify({ ...synthetic(), version: 0 });
+    storage.setItem(PROFILE_KEY, older);
+    vi.mocked(parseProfile).mockReturnValueOnce({ ok: true, profile: synthetic(), migratedFrom: 0 });
+    const store = new ProfileStore(failing(storage, { set: true }));
+    expect(store.load()).toEqual({ status: 'ok', profile: synthetic(), migratedFrom: 0 });
+    expect(store.persistent).toBe(false);
+    expect(storage.getItem(PROFILE_KEY)).toBe(older);
+    expect(store.load()).toEqual({ status: 'ok', profile: synthetic() });
+  });
+
+  it('re-saves a migrated profile when storage works', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(PROFILE_KEY, JSON.stringify({ ...synthetic(), version: 0 }));
+    vi.mocked(parseProfile).mockReturnValueOnce({ ok: true, profile: synthetic(), migratedFrom: 0 });
+    const store = new ProfileStore(storage);
+    expect(store.load()).toEqual({ status: 'ok', profile: synthetic(), migratedFrom: 0 });
+    expect(store.persistent).toBe(true);
+    expect(JSON.parse(storage.getItem(PROFILE_KEY) ?? '')).toEqual(synthetic());
+  });
+
+  it('switches to memory instead of throwing when getItem throws', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(PROFILE_KEY, JSON.stringify(synthetic()));
+    const store = new ProfileStore(failing(storage, { get: true }));
+    expect(store.load()).toEqual({ status: 'empty' });
+    expect(store.persistent).toBe(false);
+    const changed = { ...synthetic(), statureCm: 170 };
+    expect(store.save(changed)).toBe(false);
+    expect(store.load()).toEqual({ status: 'ok', profile: changed });
+    expect(JSON.parse(storage.getItem(PROFILE_KEY) ?? '')).toEqual(synthetic());
+  });
+
+  it('switches to memory instead of throwing when removeItem throws', () => {
+    const storage = new MemoryStorage();
+    const store = new ProfileStore(failing(storage, { remove: true }));
+    expect(store.save(synthetic())).toBe(true);
+    expect(store.clear()).toBe(false);
+    expect(store.persistent).toBe(false);
+    expect(store.load()).toEqual({ status: 'empty' });
   });
 
   it('clear() removes the profile', () => {
     const store = new ProfileStore(new MemoryStorage());
     store.save(synthetic());
-    store.clear();
+    expect(store.clear()).toBe(true);
     expect(store.load()).toEqual({ status: 'empty' });
   });
 
   it('runs in memory without storage', () => {
     const store = new ProfileStore(null);
     expect(store.persistent).toBe(false);
-    store.save(synthetic());
+    expect(store.save(synthetic())).toBe(false);
     expect(store.load()).toEqual({ status: 'ok', profile: synthetic() });
   });
 });
@@ -2427,11 +2558,34 @@ describe('browserStorage', () => {
     expect(browserStorage()).toBeNull();
     expect(openProfileStore().persistent).toBe(false);
   });
-  it('returns null when localStorage throws on write', () => {
-    vi.stubGlobal('localStorage', { getItem: () => null, removeItem: () => {}, setItem: () => { throw new Error('SecurityError'); } });
+  it('returns null when the localStorage accessor throws', () => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get: () => {
+        throw blocked();
+      },
+    });
+    try {
+      expect(browserStorage()).toBeNull();
+    } finally {
+      delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
+  });
+  it('returns null when getItem throws', () => {
+    vi.stubGlobal('localStorage', failing(new MemoryStorage(), { get: true }));
     expect(browserStorage()).toBeNull();
   });
-  it('returns a working localStorage', () => {
+  it('still reads a saved profile when every write fails (full quota)', () => {
+    const mem = new MemoryStorage();
+    mem.setItem(PROFILE_KEY, JSON.stringify(synthetic()));
+    const full = failing(mem, { set: true });
+    vi.stubGlobal('localStorage', full);
+    expect(browserStorage()).toBe(full);
+    const store = openProfileStore();
+    expect(store.persistent).toBe(true);
+    expect(store.load()).toEqual({ status: 'ok', profile: synthetic() });
+  });
+  it('returns a working localStorage without writing to it', () => {
     const mem = new MemoryStorage();
     vi.stubGlobal('localStorage', mem);
     expect(browserStorage()).toBe(mem);
@@ -2482,14 +2636,16 @@ export class MemoryStorage implements KeyValueStorage {
   }
 }
 
-/** localStorage if it exists and accepts writes (private modes may throw), else null. */
+/**
+ * localStorage if it can be read, else null. Accessing `localStorage` or calling `getItem` throws
+ * in private or blocked-cookie modes. The check is read-only on purpose: a full quota must not hide
+ * a saved profile, and write failures are handled by ProfileStore at the time they happen.
+ */
 export function browserStorage(): KeyValueStorage | null {
   try {
     const s = globalThis.localStorage;
     if (!s) return null;
-    const probe = 'aih.__probe';
-    s.setItem(probe, '1');
-    s.removeItem(probe);
+    s.getItem(PROFILE_KEY);
     return s;
   } catch {
     return null;
@@ -2504,20 +2660,30 @@ export type LoadResult =
 
 /**
  * The only code that touches browser storage (spec §4.2). Every read goes through the schema;
- * nothing here ever sends data anywhere.
+ * nothing here ever sends data anywhere. Storage errors (quota, SecurityError) never reach the
+ * caller: the first one switches the store to memory for the rest of the session, so it keeps
+ * working and never writes over data it could not back up.
  */
 export class ProfileStore {
-  /** False when changes live only in memory (the planner shows a "won't be saved" banner). */
-  readonly persistent: boolean;
-  private readonly storage: KeyValueStorage;
+  private storage: KeyValueStorage;
+  private durable: boolean;
 
   constructor(storage: KeyValueStorage | null, private readonly now: () => number = Date.now) {
-    this.persistent = storage !== null;
+    this.durable = storage !== null;
     this.storage = storage ?? new MemoryStorage();
   }
 
+  /**
+   * False when changes live only in memory (the planner shows a "won't be saved" banner): there is
+   * no storage, or a storage call failed earlier in the session. Once false, it stays false.
+   */
+  get persistent(): boolean {
+    return this.durable;
+  }
+
+  /** Never throws. If storage cannot be read, the store switches to memory and reports `empty`. */
   load(): LoadResult {
-    const text = this.storage.getItem(PROFILE_KEY);
+    const text = this.read(PROFILE_KEY);
     if (text === null) return { status: 'empty' };
     let raw: unknown;
     try {
@@ -2528,33 +2694,97 @@ export class ProfileStore {
     const parsed = parseProfile(raw);
     if (!parsed.ok) return this.quarantine(text, parsed.errors);
     if (parsed.migratedFrom === undefined) return { status: 'ok', profile: parsed.profile };
+    // Best effort: if the re-save fails, the store switches to memory and the old text stays as it is.
     this.save(parsed.profile);
     return { status: 'ok', profile: parsed.profile, migratedFrom: parsed.migratedFrom };
   }
 
-  /** Validates, then writes. Throws on an invalid profile (a developer error). */
-  save(profile: Profile): void {
-    this.storage.setItem(PROFILE_KEY, JSON.stringify(ProfileSchema.parse(profile)));
+  /**
+   * Validates, then writes. Returns true when the profile reached persistent storage and false when
+   * it is kept in memory only (no storage, or the write failed, e.g. quota). Throws only on an
+   * invalid profile (a developer error), never because of storage.
+   */
+  save(profile: Profile): boolean {
+    const text = JSON.stringify(ProfileSchema.parse(profile));
+    if (this.write(PROFILE_KEY, text)) return this.durable;
+    this.storage.setItem(PROFILE_KEY, text); // the memory copy after the fallback
+    return false;
   }
 
-  /** "Reset data": removes the profile (backups stay until the user clears site data). */
-  clear(): void {
-    this.storage.removeItem(PROFILE_KEY);
+  /**
+   * "Reset data": removes the profile (backups stay until the user clears site data). Returns
+   * whether the removal reached persistent storage; on failure the store switches to memory.
+   */
+  clear(): boolean {
+    return this.remove(PROFILE_KEY) && this.durable;
   }
 
+  /**
+   * Owner decision 16: back up the raw text, then remove it. The original is removed only after a
+   * successful backup. If the backup fails, the store switches to memory, so no later save() can
+   * overwrite the only copy.
+   */
   private quarantine(text: string, errors: FieldError[]): LoadResult {
-    const backupKey = `${BACKUP_PREFIX}${this.now()}`;
-    try {
-      this.storage.setItem(backupKey, text);
-    } catch {
-      return { status: 'corrupt', backupKey: null, errors };
-    }
-    this.storage.removeItem(PROFILE_KEY);
+    const backupKey = this.freeBackupKey();
+    if (backupKey === null || !this.write(backupKey, text)) return { status: 'corrupt', backupKey: null, errors };
+    this.remove(PROFILE_KEY); // a failure leaves both copies and switches to memory
     return { status: 'corrupt', backupKey, errors };
+  }
+
+  /** `aih.profile.backup.<timestamp>`, with `-1`, `-2`… if that key is taken (same millisecond). */
+  private freeBackupKey(): string | null {
+    const base = `${BACKUP_PREFIX}${this.now()}`;
+    for (let n = 0; ; n++) {
+      const key = n === 0 ? base : `${base}-${n}`;
+      try {
+        if (this.storage.getItem(key) === null) return key;
+      } catch {
+        this.fallBackToMemory();
+        return null;
+      }
+    }
+  }
+
+  private read(key: string): string | null {
+    try {
+      return this.storage.getItem(key);
+    } catch {
+      this.fallBackToMemory();
+      return null;
+    }
+  }
+
+  private write(key: string, value: string): boolean {
+    try {
+      this.storage.setItem(key, value);
+      return true;
+    } catch {
+      this.fallBackToMemory();
+      return false;
+    }
+  }
+
+  private remove(key: string): boolean {
+    try {
+      this.storage.removeItem(key);
+      return true;
+    } catch {
+      this.fallBackToMemory();
+      return false;
+    }
+  }
+
+  /** From now on nothing touches persistent storage, so data left there stays exactly as it is. */
+  private fallBackToMemory(): void {
+    this.storage = new MemoryStorage();
+    this.durable = false;
   }
 }
 
-/** The store the site uses: localStorage when available, otherwise memory only. */
+/**
+ * The store the site uses: localStorage when available, otherwise memory only. Open it once and
+ * share it: in memory mode each call gets its own empty store.
+ */
 export function openProfileStore(): ProfileStore {
   return new ProfileStore(browserStorage());
 }
@@ -2566,7 +2796,7 @@ export function openProfileStore(): ProfileStore {
 export { MIGRATIONS, migrate } from './migrate';
 export { type FieldError, parseProfile } from './parse';
 export { defaultProfile, PROFILE_VERSION, type Profile, ProfileSchema } from './schema';
-export { BACKUP_PREFIX, browserStorage, type LoadResult, MemoryStorage, openProfileStore, PROFILE_KEY, ProfileStore } from './storage';
+export { BACKUP_PREFIX, browserStorage, type KeyValueStorage, type LoadResult, MemoryStorage, openProfileStore, PROFILE_KEY, ProfileStore } from './storage';
 export { exportFileName, exportProfile, importProfile } from './transfer';
 ```
 
@@ -2578,7 +2808,7 @@ Expected: no output.
 - [ ] **Step 6: Run the tests and the checks**
 
 Run: `npx vitest run src/lib/profile && npm run lint && npm run check`
-Expected: 31 passed (storage 11); 0 lint and type errors.
+Expected: 42 passed (storage 22); 0 lint and type errors.
 
 - [ ] **Step 7: Commit, open the PR, merge when CI is green**
 
@@ -2591,7 +2821,7 @@ gh pr create --repo tomqwu/ai_health --title "Profile storage adapter (localStor
 ```
 When CI is green: `gh pr merge --squash --delete-branch && git checkout main && git pull`.
 
-**Done when:** corrupt data is backed up and the store keeps working; without `localStorage` it runs in memory and says so (`persistent: false`).
+**Done when:** corrupt data is backed up and the store keeps working; without `localStorage` it runs in memory and says so (`persistent: false`); no storage error (quota, blocked access) escapes `load`, `save` or `clear`, a failure switches the store to memory, and a corrupt profile without a backup is never overwritten.
 
 ---
 
