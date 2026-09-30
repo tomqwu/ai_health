@@ -249,6 +249,10 @@ describe('twoBoneIK degenerate inputs', () => {
     expect(() => b.twoBoneIK(...CHAIN, a, [0, 0, 1])).toThrow(/twoBoneIK\(thigh_l → calf_l → foot_l\): target/);
     expect(() => b.twoBoneIK(...CHAIN, [0, Number.NaN, 0], [0, 0, 1])).toThrow(/twoBoneIK\(thigh_l → calf_l → foot_l\): target/);
     expect(() => b.twoBoneIK(...CHAIN, add(a, [0, -60, 10]), [0, Infinity, 0])).toThrow(/twoBoneIK\(thigh_l → calf_l → foot_l\): pole/);
+    expect(() => b.twoBoneIK(...CHAIN, add(a, [0, -60, 10]), [0, 0, 1], { bendSide: [0, 0, 0] })).toThrow(/bendSide/);
+    expect(() =>
+      b.twoBoneIK(...CHAIN, add(a, [0, -60, 10]), [0, 0, 1], { bendSide: [0, 0, -1], upperRoll: { up: [0, 0, 1] } }),
+    ).toThrow(/bendSide or upperRoll/);
   });
 
   it('leaves the builder unchanged when it throws', () => {

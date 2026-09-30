@@ -15,7 +15,7 @@ const STATURES = [150, 165, 175, 190, 200];
 const rows = STATURES.flatMap((statureCm) =>
   SMITH_SQUAT.frames.map((frame) => {
     const sol = solveSmithSquat(sk, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
-    const a = jointAngles(sol.world, 'l');
+    const a = jointAngles(sk, sol.world, 'l');
     return {
       statureCm,
       label: frame.label[lang],

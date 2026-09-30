@@ -70,7 +70,7 @@ describe('solveSmithSquat', () => {
     const [top, bottom] = [0, 1].map((i) => solveSmithSquat(sk, SMITH_SQUAT, SMITH_SQUAT.frames[i]!, { statureCm: 190, railZCm: 0 }));
     expect(bottom!.barCenter[1]).toBeLessThan(top!.barCenter[1] - 30);
     expect(bottom!.trunkDeg).toBeGreaterThan(top!.trunkDeg + 15);
-    const a = jointAngles(bottom!.world, 'l');
+    const a = jointAngles(sk, bottom!.world, 'l');
     expect(a.kneeFlexDeg).toBeGreaterThan(90);
     expect(a.hipFlexDeg).toBeGreaterThan(90);
   });

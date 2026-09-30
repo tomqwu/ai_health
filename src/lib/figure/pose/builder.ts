@@ -161,7 +161,10 @@ export class PoseBuilder {
    * parent), or toward the body's up (+Y, turned likewise) when the axis itself runs forward.
    *
    * `opts.upperRoll` / `opts.lowerRoll` fix each bone's twist as in {@link aim}; joint positions do not
-   * depend on them.
+   * depend on them. `opts.bendSide` is the anatomical shortcut for the upper bone: the side of `upper`
+   * that faces the bend, as a direction in the rest pose (forward for an elbow, backward for a knee).
+   * The upper bone is then rolled so that side faces the lower bone, which makes the middle joint bend
+   * like a hinge about its own axis instead of wherever the shortest swing left the upper bone's twist.
    *
    * Every input is validated and both rotations are computed before any bone changes, so a call that
    * throws leaves the builder as it was.
@@ -172,7 +175,7 @@ export class PoseBuilder {
     end: string,
     target: Vec3,
     pole: Vec3,
-    opts: { upperRoll?: AimRoll; lowerRoll?: AimRoll } = {},
+    opts: { upperRoll?: AimRoll; lowerRoll?: AimRoll; bendSide?: Vec3 } = {},
   ): Vec3 {
     const chain = `twoBoneIK(${upper} → ${lower} → ${end})`;
     const du = this.def(upper);
@@ -184,6 +187,12 @@ export class PoseBuilder {
     if (!isFiniteVec(target)) throw new Error(`${chain}: target is not a finite point (${String(target)})`);
     if (!isFiniteVec(pole) || length(pole) === 0) {
       throw new Error(`${chain}: pole must be a finite, non-zero direction (got ${String(pole)})`);
+    }
+    if (opts.bendSide !== undefined) {
+      if (opts.upperRoll) throw new Error(`${chain}: pass bendSide or upperRoll, not both`);
+      if (!isFiniteVec(opts.bendSide) || length(opts.bendSide) === 0) {
+        throw new Error(`${chain}: bendSide must be a finite, non-zero direction (got ${String(opts.bendSide)})`);
+      }
     }
     const w = this.world();
     const a = w[upper]!.position;
@@ -205,7 +214,8 @@ export class PoseBuilder {
     const reached = add(a, scale(dir, d));
 
     // Solve both bones before touching either, so a throw cannot leave a half-applied pose.
-    const upperWorld = this.aimRotation(upper, lower, parentRot, a, mid, opts.upperRoll);
+    const upperRoll = opts.bendSide ? { restUp: rotate(bodyTurn, opts.bendSide), up: sub(reached, mid) } : opts.upperRoll;
+    const upperWorld = this.aimRotation(upper, lower, parentRot, a, mid, upperRoll);
     const lowerHead = add(a, rotate(upperWorld, scale(dl.restLocalT, this.scaleFactor)));
     const lowerWorld = this.aimRotation(lower, end, upperWorld, lowerHead, reached, opts.lowerRoll);
     this.local[upper] = normalizeQuat(multiply(conjugate(parentRot), upperWorld));
