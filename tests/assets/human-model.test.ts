@@ -5,9 +5,9 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
 import { describe, expect, it } from 'vitest';
 import { extractSkeleton } from '../../scripts/lib/extractSkeleton';
-import skeletonJson from '../../src/lib/figure/pose/skeleton.json';
 import { rotate } from '../../src/lib/figure/math/quat';
-import { restPose, type SkeletonDef } from '../../src/lib/figure/pose/skeleton';
+import { REAL_SKELETON } from '../../src/lib/figure/pose/realSkeleton';
+import { restPose } from '../../src/lib/figure/pose/skeleton';
 import { PLAY_ORDER } from '../../src/lib/figure/pose/playOrder';
 import { interpolateFrame, solveSmithSquat } from '../../src/lib/figure/pose/smithSquat';
 import { validateSmithSquat } from '../../src/lib/figure/pose/validate';
@@ -15,7 +15,7 @@ import { ILLUSTRATIVE_SMITH } from '../../src/lib/figure/geometry/smith';
 import { SMITH_SQUAT } from '../../src/lib/figure/fixtures/smith-squat';
 
 const MODEL = 'public/models/human.glb';
-const skeleton = skeletonJson as unknown as SkeletonDef;
+const skeleton = REAL_SKELETON;
 
 describe('committed human model', () => {
   it('fits the 8 MB budget', () => {

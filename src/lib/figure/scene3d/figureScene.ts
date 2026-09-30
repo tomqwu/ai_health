@@ -1,5 +1,4 @@
-import skeletonJson from '../pose/skeleton.json';
-import type { SkeletonDef } from '../pose/skeleton';
+import { REAL_SKELETON } from '../pose/realSkeleton';
 import { interpolateFrame, solveSmithSquat, type SmithSquatFrame, type SmithSquatSolution, type SmithSquatSpec } from '../pose/smithSquat';
 import { buildSmith, ILLUSTRATIVE_SMITH } from '../geometry/smith';
 import { barArrow } from '../overlay';
@@ -8,7 +7,6 @@ import { applyPose, loadHuman } from './human';
 import { createStage, disposeStage, type OrbitView, projectCm, renderStage, setOrbitView, type Stage } from './stage';
 
 export const DEFAULT_STATURE_CM = 175;
-export const SKELETON = skeletonJson as unknown as SkeletonDef;
 
 export interface FigureScene {
   stage: Stage;
@@ -29,7 +27,7 @@ export async function mountFigure(
   const { spec } = opts;
   const statureCm = opts.statureCm ?? DEFAULT_STATURE_CM;
   const smith = ILLUSTRATIVE_SMITH;
-  const solve = (frame: SmithSquatFrame) => solveSmithSquat(SKELETON, spec, frame, { statureCm, railZCm: smith.railZCm });
+  const solve = (frame: SmithSquatFrame) => solveSmithSquat(REAL_SKELETON, spec, frame, { statureCm, railZCm: smith.railZCm });
   const keyframes = spec.frames.map(solve);
   const lowestBar = Math.min(...keyframes.map((f) => f.barCenter[1]));
   const k = statureCm / DEFAULT_STATURE_CM;

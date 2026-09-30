@@ -1,6 +1,5 @@
 ---
-import skeletonJson from '../../lib/figure/pose/skeleton.json';
-import type { SkeletonDef } from '../../lib/figure/pose/skeleton';
+import { REAL_SKELETON as sk } from '../../lib/figure/pose/realSkeleton';
 import { solveSmithSquat } from '../../lib/figure/pose/smithSquat';
 import { jointAngles, validateSmithSquat } from '../../lib/figure/pose/validate';
 import { ILLUSTRATIVE_SMITH } from '../../lib/figure/geometry/smith';
@@ -11,7 +10,6 @@ import './figure.css';
 
 interface Props { lang: Locale }
 const { lang } = Astro.props;
-const sk = skeletonJson as unknown as SkeletonDef;
 const deg = (n: number) => `${Math.round(n) || 0}°`;
 const STATURES = [150, 165, 175, 190, 200];
 const rows = STATURES.flatMap((statureCm) =>
@@ -45,7 +43,7 @@ const rows = STATURES.flatMap((statureCm) =>
         <td>
           {r.findings.length === 0
             ? <span class="pass">✓ {t(lang, 'spike.check.pass')}</span>
-            : <span class="fail">✗ {t(lang, 'spike.check.fail')}: {r.findings.map((f) => f.check).join(', ')}</span>}
+            : <span class="fail">✗ {t(lang, 'spike.check.fail')}: {r.findings.map((f, i) => <>{i > 0 && ', '}<code>{f.check}</code></>)}</span>}
         </td>
       </tr>
     ))}
