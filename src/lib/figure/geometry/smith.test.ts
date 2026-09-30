@@ -163,7 +163,10 @@ describe('smithProblems', () => {
     ['plates longer than the sleeve', { plateGapCm: 26 }, /plates .* sleeve/],
     ['plates hitting the front and back uprights', { plateDiameterCm: 101 }, /plates .* depth/],
     ['plates hitting the floor frame at the lowest bar', { lowestBarHeightCm: 24 }, /plates .* floor/],
-    ['plates hitting the top frame at the highest bar', { highestBarHeightCm: 190 }, /plates .* top/],
+    ['plates hitting the top frame at the highest bar', { highestBarHeightCm: 190 }, /plates must clear the top frame .* \(at most 185 cm\)/],
+    ['carriages hitting the top frame at the highest bar', { carriageHeightCm: 60 }, /carriages must clear the top frame .* \(at most 177\.5 cm\)/],
+    ['rail bottom above the rail top', { railBottomCm: 210 }, /rail bottom 210 cm must be below the rail top 207\.5 cm/],
+    ['rail floating above its floor foot', { railBottomCm: 10 }, /rail bottom 10 cm must sit in its floor foot \(at most 3\.75 cm\)/],
     ['stop blocks below the rail foot', { lowestBarHeightCm: 14 }, /stop .* rail/],
     ['blocks narrower than the rail', { stopBlockWidthCm: 2 }, /stopBlockWidthCm .* rail/],
   ])('rejects %s', (_, change, message) => {
@@ -176,6 +179,21 @@ describe('smithProblems', () => {
     expect(smithProblems(P, { barHeightCm: P.lowestBarHeightCm - 1 }).join()).toMatch(/bar height 39 .* 40–180/);
     expect(smithProblems(P, { barHeightCm: 100, catchHeightCm: P.lowestBarHeightCm - 1 }).join()).toMatch(/catch height 39 .* lowest bar height 40/);
     expect(smithProblems(P, { barHeightCm: 100, catchHeightCm: P.highestBarHeightCm + 1 }).join()).toMatch(/catch height 181/);
+  });
+  it('accepts a rail bottom level with the top of its foot', () => {
+    expect(smithProblems({ ...P, railBottomCm: P.uprightSizeCm / 2 })).toEqual([]);
+  });
+  it('rejects catch blocks that would sit below the rail foot', () => {
+    const q = { ...P, catchBlockHeightCm: 30 };
+    expect(smithProblems(q)).toEqual([]);
+    // 40 − 8 (half carriage) − 30 = 2 cm, below the 3 cm rail bottom.
+    expect(smithProblems(q, { barHeightCm: 100, catchHeightCm: 40 }).join()).toMatch(/catch blocks under the catch height 40 cm must sit on the rail \(above 3 cm\)/);
+    expect(smithProblems(q, { barHeightCm: 100, catchHeightCm: 45 })).toEqual([]);
+  });
+  it('names a non-finite bar or catch height as such', () => {
+    expect(smithProblems(P, { barHeightCm: 100, catchHeightCm: Number.NaN }).join()).toMatch(/catch height NaN must be a finite number/);
+    expect(smithProblems(P, { barHeightCm: 100, catchHeightCm: Number.NaN }).join()).not.toMatch(/below/);
+    expect(smithProblems(P, { barHeightCm: Number.POSITIVE_INFINITY }).join()).toMatch(/bar height Infinity must be a finite number/);
   });
   it('buildSmith refuses invalid params or state', () => {
     expect(() => buildSmith(P, { barHeightCm: 100, catchHeightCm: 20 })).toThrow(/buildSmith: .*catch height 20/);

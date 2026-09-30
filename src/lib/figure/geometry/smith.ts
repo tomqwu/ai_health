@@ -82,8 +82,9 @@ const railTop = (p: SmithParams) => p.rackHeightCm - p.uprightSizeCm;
 /**
  * Everything wrong with a machine description (and, if given, a bar/catch setting), as readable
  * sentences; empty when it can be drawn. Checks that sizes are positive, the bar travel is ordered, the
- * rails sit inside the rack, the plates fit the sleeves and clear the frame over the whole travel, the
- * stops sit on the rails, and the bar and catches are set within the travel.
+ * rails sit inside the rack and stand in their floor feet, the plates fit the sleeves and clear the frame
+ * over the whole travel, the stops and catches sit on the rails, and the bar and catches are set within
+ * the travel.
  */
 export function smithProblems(p: SmithParams, state?: SmithState): string[] {
   const out: string[] = [];
@@ -101,6 +102,8 @@ export function smithProblems(p: SmithParams, state?: SmithState): string[] {
     out.push(`rails at ±${p.railHalfSpacingCm} cm, z ${p.railZCm} cm must sit inside the rack (${p.rackInnerWidthCm} × ${p.rackInnerDepthCm} cm inside)`);
   }
   if (p.railBottomCm >= railTop(p)) out.push(`rail bottom ${p.railBottomCm} cm must be below the rail top ${railTop(p)} cm`);
+  // The rail stands in its floor foot (`base-rail-*`), which is as tall as the floor base.
+  if (p.railBottomCm > baseHeight(p)) out.push(`rail bottom ${p.railBottomCm} cm must sit in its floor foot (at most ${baseHeight(p)} cm)`);
   if (p.plateGapCm + p.plateThicknessCm > p.sleeveLengthCm) {
     out.push(`plates (gap ${p.plateGapCm} + thickness ${p.plateThicknessCm} cm) must fit on the ${p.sleeveLengthCm} cm sleeve`);
   }
@@ -110,8 +113,9 @@ export function smithProblems(p: SmithParams, state?: SmithState): string[] {
   if (p.lowestBarHeightCm - plateR < baseHeight(p)) {
     out.push(`plates must clear the floor frame at the lowest bar height ${p.lowestBarHeightCm} cm (needs at least ${baseHeight(p) + plateR} cm)`);
   }
-  if (p.highestBarHeightCm + Math.max(plateR, p.carriageHeightCm / 2) > railTop(p)) {
-    out.push(`plates and carriages must clear the top frame at the highest bar height ${p.highestBarHeightCm} cm (at most ${railTop(p) - plateR} cm)`);
+  const [topReach, topPart] = plateR >= p.carriageHeightCm / 2 ? [plateR, 'plates'] : [p.carriageHeightCm / 2, 'carriages'];
+  if (p.highestBarHeightCm + topReach > railTop(p)) {
+    out.push(`${topPart} must clear the top frame at the highest bar height ${p.highestBarHeightCm} cm (at most ${railTop(p) - topReach} cm)`);
   }
   if (p.lowestBarHeightCm - p.carriageHeightCm / 2 - p.stopBlockHeightCm < p.railBottomCm) {
     out.push(`stop blocks under the lowest bar height ${p.lowestBarHeightCm} cm must sit on the rail (above ${p.railBottomCm} cm)`);
@@ -123,11 +127,16 @@ export function smithProblems(p: SmithParams, state?: SmithState): string[] {
   if (state) {
     const range = `${p.lowestBarHeightCm}–${p.highestBarHeightCm} cm`;
     const y = state.barHeightCm;
-    if (!Number.isFinite(y) || y < p.lowestBarHeightCm || y > p.highestBarHeightCm) out.push(`bar height ${y} cm is outside the travel ${range}`);
+    if (!Number.isFinite(y)) out.push(`bar height ${y} must be a finite number`);
+    else if (y < p.lowestBarHeightCm || y > p.highestBarHeightCm) out.push(`bar height ${y} cm is outside the travel ${range}`);
     const c = state.catchHeightCm;
     if (c !== undefined) {
-      if (!Number.isFinite(c) || c < p.lowestBarHeightCm) out.push(`catch height ${c} cm is below the lowest bar height ${p.lowestBarHeightCm} cm`);
+      if (!Number.isFinite(c)) out.push(`catch height ${c} must be a finite number`);
+      else if (c < p.lowestBarHeightCm) out.push(`catch height ${c} cm is below the lowest bar height ${p.lowestBarHeightCm} cm`);
       else if (c > p.highestBarHeightCm) out.push(`catch height ${c} cm is above the highest bar height ${p.highestBarHeightCm} cm`);
+      else if (c - p.carriageHeightCm / 2 - p.catchBlockHeightCm < p.railBottomCm) {
+        out.push(`catch blocks under the catch height ${c} cm must sit on the rail (above ${p.railBottomCm} cm)`);
+      }
     }
   }
   return out;
