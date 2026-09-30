@@ -56,6 +56,13 @@ describe('poseFigure', () => {
   it('builds the fixed scene once per set of equipment dimensions', () => {
     expect(fig.scene(sk, { statureCm: 175 })).toBe(fig.scene(sk, { statureCm: 190 }));
   });
+  it('sets catches that follow the bar per stature, and needs a frame that moves the Smith bar', () => {
+    const smith = FIGURES['smith-bench-press']!;
+    expect(smith.scene(REAL_SKELETON, { statureCm: 175 })).toBe(smith.scene(REAL_SKELETON, { statureCm: 175 }));
+    expect(smith.scene(REAL_SKELETON, { statureCm: 175 })).not.toBe(smith.scene(REAL_SKELETON, { statureCm: 190 }));
+    const noBar = poseFigure({ ...spec, scene: { trainer: { catchBelowLowestBarCm: 3 } } });
+    expect(() => noBar.scene(sk, { statureCm: 175 })).toThrow(/needs a frame that moves the Smith bar/);
+  });
   it('settles an in-between pose back onto the contact both frames keep', () => {
     const lying = (hipsY: number, pitchDeg: number) =>
       stand({ trunk: { hips: { bodyCm: [0, hipsY, 0] }, pitchDeg }, contacts: [{ part: 'chest', on: 'floor' }], legs: { l: { ...STAND.legs.l, contact: 'none', to: { from: 'body.hips', bodyCm: [10, 0, 80] } }, r: { ...STAND.legs.r, contact: 'none', to: { from: 'body.hips', bodyCm: [-10, 0, 80] } } } });

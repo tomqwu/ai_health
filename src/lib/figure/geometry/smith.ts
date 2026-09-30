@@ -142,9 +142,12 @@ export function smithProblems(p: SmithParams, state?: SmithState): string[] {
   return out;
 }
 
-/** Catch height for a set whose lowest bar position is `lowestRepBarCm`: a little below it, within the travel. */
-export function catchHeightFor(p: SmithParams, lowestRepBarCm: number): number {
-  return Math.max(p.lowestBarHeightCm, lowestRepBarCm - p.catchBelowBottomCm);
+/**
+ * Catch height for a set whose lowest bar position is `lowestRepBarCm`: `belowCm` below it (default the
+ * machine's `catchBelowBottomCm`), within the travel.
+ */
+export function catchHeightFor(p: SmithParams, lowestRepBarCm: number, belowCm = p.catchBelowBottomCm): number {
+  return Math.max(p.lowestBarHeightCm, lowestRepBarCm - belowCm);
 }
 
 /** Primitives for a Smith machine; throws if `smithProblems` finds anything wrong. */
