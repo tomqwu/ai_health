@@ -55,6 +55,7 @@ visitor's browser.
 | D8 | Project tracking | GitHub milestones, labels, issues; one PR per issue | Owner request |
 | D9 | Setup positions | Words on public pages ("chest height"); approximate hole numbers only in personal plans, computed from the user's own measurements | Practical beside the machine without inventing settings |
 | D10 | Cable loads | Shown as the numbers printed on the stack; the cable ratio is optional and never guessed | Plans use RIR, so the ratio isn't needed |
+| D11 | Movement arrows on figures | Composited into the pre-rendered WebP frames, not served as overlay JSON; the interactive viewer still draws them as an SVG overlay. Render caching by content hash is deferred to M3 | Arrows carry no text, so one render still serves both languages; fewer moving parts for static pages |
 
 ## 4. Architecture
 
