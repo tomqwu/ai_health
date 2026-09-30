@@ -11,7 +11,7 @@ Practical guides for healthy living, in English and 简体中文, starting with 
 - **Safety first.** A safety page lists the warning signs that mean stop and get checked, plus everyday habits for training safely at home.
 - **Works on any screen.** The layout adapts to phones, and the site is built to be accessible: keyboard navigation, screen-reader labels, and readable contrast in light and dark mode.
 
-A preview of the 3D figure is at [/en/dev/figure-spike/](https://tomqwu.github.io/ai_health/en/dev/figure-spike/).
+The 3D figures can be previewed on a review page with every figure and piece of equipment: [/en/dev/figures/](https://tomqwu.github.io/ai_health/en/dev/figures/).
 
 ## Built, not yet on screen
 

@@ -69,7 +69,7 @@ test.describe('same-origin requests', () => {
   // The 3D pages load a model and render with software WebGL, so they need more than the 30 s default.
   test.describe.configure({ timeout: 120_000 });
   const targets = [
-    ...LOCALES.flatMap(({ code }) => [...PAGES, 'dev/figure-spike/'].map((path) => `/ai_health/${code}/${path}`)),
+    ...LOCALES.flatMap(({ code }) => [...PAGES, 'dev/figures/', 'dev/figures/smith-squat/'].map((path) => `/ai_health/${code}/${path}`)),
     '/ai_health/', // the language-detecting root page (it redirects)
     '/ai_health/does-not-exist/', // the 404 page
   ];
@@ -88,7 +88,7 @@ test.describe('same-origin requests', () => {
         if (isForeign(ws.url())) foreign.push(ws.url());
       });
       await page.goto(url);
-      if (url.includes('/dev/')) await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+      if (/\/dev\/figures\/[^/]+\/$/.test(url)) await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
       // Scroll to the bottom in steps so lazy-loaded images request their files before the network goes idle.
       await page.evaluate(async () => {
         for (let y = 0; y <= document.documentElement.scrollHeight; y += 400) {
@@ -133,13 +133,13 @@ test.describe('same-origin requests', () => {
 
 test.describe('phone width', () => {
   test.use({ viewport: { width: 375, height: 812 } });
-  // The spike page mounts the 3D viewer (software WebGL on CI), so its sweep gets a longer budget.
+  // The figure page mounts the 3D viewer (software WebGL on CI), so its sweep gets a longer budget.
   test.describe.configure({ timeout: 120_000 });
   for (const { code } of LOCALES) {
-    for (const path of [...PAGES, 'dev/figure-spike/']) {
+    for (const path of [...PAGES, 'dev/figures/', 'dev/figures/smith-squat/']) {
       test(`/${code}/${path} has no horizontal scroll`, async ({ page }) => {
         await page.goto(`/ai_health/${code}/${path}`);
-        if (path.startsWith('dev/')) await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
+        if (path.startsWith('dev/figures/') && path !== 'dev/figures/') await expect(page.locator('[data-figure-status="ready"]')).toBeVisible({ timeout: 90_000 });
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(overflow).toBeLessThanOrEqual(0);
       });
@@ -156,7 +156,7 @@ test.describe('meta descriptions', () => {
       };
       const home = await description('');
       expect(home.trim()).not.toBe('');
-      for (const path of ['fitness/', 'safety/', 'dev/figure-spike/']) {
+      for (const path of ['fitness/', 'safety/', 'dev/figures/', 'dev/figures/smith-squat/']) {
         const d = await description(path);
         expect(d.trim(), path).not.toBe('');
         expect(d, path).not.toBe(home);

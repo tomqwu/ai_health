@@ -18,7 +18,7 @@ How exercise figures are produced. Spec: §8 of `docs/superpowers/specs/2026-09-
 | Geometry | `src/lib/figure/geometry` | Equipment primitives built from parameters (`SmithParams`, checked by `smithProblems`); `ILLUSTRATIVE_SMITH` holds labelled drawing defaults (not measurements of anyone's machine) |
 | Fixtures | `src/lib/figure/fixtures` | Exercise data: `SMITH_SQUAT` and the `FIGURES` registry the renderer reads |
 | 3D | `src/lib/figure/scene3d` | Stage (lights, floor, camera), equipment meshes, human loader and `applyPose`, `mountFigure` |
-| Output | `scripts/render-figures.ts`, `src/pages/render/[figure].astro` (dev-only; never built into `dist/`), `src/components/figure/` | Pre-rendered WebP frames; the interactive `FigureViewer.tsx`; the spike page `/<lang>/dev/figure-spike/` |
+| Output | `scripts/render-figures.ts`, `src/pages/render/[figure].astro` (dev-only; never built into `dist/`), `src/components/figure/` | Pre-rendered WebP frames; the interactive `FigureViewer.tsx`; the review pages `/<lang>/dev/figures/` (every figure and equipment still) and `/<lang>/dev/figures/<id>/` |
 
 ## Regenerating the human model
 
@@ -44,7 +44,7 @@ npx vitest run tests/assets  # model budget, skeleton sync, and the real-rig Smi
    - Known limitation: the Smith squat solver leaves the humerus at its shortest-swing twist, so its elbows are checked for bend magnitude only (see `validateSmithSquat`). `twoBoneIK`'s `bendSide` rolls the humerus into true hinge flexion, but on this rig (no twist bones) that twists the shirt sleeve.
    - The signed metric takes its size from the full angle between the two segments and only its sign from the hinge axis, so a bend off the hinge plane (sideways) is not flagged. The Smith squat's knees bend up to about 25° off the thigh's hinge on the real rig, from the same shortest-swing thigh twist; the sign stays right. `bendSide` on the thighs would fix it (see `signedBendDeg`).
    - An arm that may swing far from rest (overhead) needs a roll hint (`aim(..., { up })`, `twoBoneIK(..., { upperRoll, lowerRoll })`); without one its twist is only deterministic, not controlled.
-3. `npm run render:figures` and look at `public/figures/<id>/frame-*.webp`, or open `/<lang>/dev/figure-spike/`, which shows the live viewer, the frames and the validator table for 150–200 cm.
+3. `npm run render:figures` and look at `public/figures/<id>/frame-*.webp`, or open `/<lang>/dev/figures/<id>/`, which shows the live viewer (with a height picker), the frames and the sweep table (errors and warnings) for 150–200 cm.
 
 ## Rendering
 

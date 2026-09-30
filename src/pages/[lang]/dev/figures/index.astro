@@ -1,0 +1,41 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import { figureMeta } from '../../../../lib/figure/figures';
+import { FIGURES } from '../../../../lib/figure/fixtures';
+import { EQUIPMENT_MODELS } from '../../../../lib/figure/geometry/models';
+import { localeStaticPaths, localizedPath, requireLocale, t } from '../../../../lib/i18n';
+import { withBase } from '../../../../lib/site';
+import '../../../../components/figure/figure.css';
+
+export function getStaticPaths() {
+  return localeStaticPaths();
+}
+const lang = requireLocale(Astro.params.lang);
+const figures = Object.values(FIGURES).map(figureMeta);
+const models = Object.values(EQUIPMENT_MODELS);
+---
+<BaseLayout lang={lang} title={t(lang, 'devFigures.title')} description={t(lang, 'devFigures.intro')} noindex>
+  <h1>{t(lang, 'devFigures.title')}</h1>
+  <p class="lead">{t(lang, 'devFigures.intro')}</p>
+  <h2>{t(lang, 'devFigures.exercises')}</h2>
+  <ul class="figure-gallery">
+    {figures.map((f) => (
+      <li>
+        <a href={localizedPath(lang, `dev/figures/${f.id}`)}>
+          <img src={withBase(`figures/${f.id}/frame-1.webp`)} alt={f.name[lang]} width="900" height="1200" loading="lazy" decoding="async" />
+          <span>{f.name[lang]}</span>
+        </a>
+      </li>
+    ))}
+  </ul>
+  <h2>{t(lang, 'devFigures.equipment')}</h2>
+  <p>{t(lang, 'figure.illustrative')}</p>
+  <ul class="figure-gallery">
+    {models.map((m) => (
+      <li>
+        <img src={withBase(`figures/equipment/${m.id}.webp`)} alt={m.id} width="900" height="1200" loading="lazy" decoding="async" />
+        <span><code>{m.id}</code></span>
+      </li>
+    ))}
+  </ul>
+</BaseLayout>

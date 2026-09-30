@@ -19,7 +19,7 @@ export interface FigureFrameCheck {
 /**
  * Solve one frame and validate it with the same inputs: the rail comes from `ctx.smith` and the bar
  * offset from `spec`, so the solver and the validator cannot be handed different values. Every place
- * that checks a frame (the spike page, the figure sweeps, the in-between Play poses) goes through here.
+ * that checks a frame (the figure review pages, the figure sweeps, the in-between Play poses) goes through here.
  */
 export function checkFigureFrame(sk: SkeletonDef, spec: SmithSquatSpec, frame: SmithSquatFrame, ctx: FigureFrameContext): FigureFrameCheck {
   const solution = solveSmithSquat(sk, spec, frame, { statureCm: ctx.statureCm, railZCm: ctx.smith.railZCm });

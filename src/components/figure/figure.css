@@ -14,13 +14,16 @@
 .figure-frames img, .figure-fallback-grid img { width: 100%; height: auto; border-radius: var(--radius); background: #f3f2ee; }
 .figure-frames figcaption { display: flex; flex-direction: column; margin-top: 6px; }
 .figure-frames figcaption span { color: var(--muted); font-size: 0.9rem; }
-.spike-checks-scroll { overflow-x: auto; }
-.spike-checks { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
-.spike-checks th, .spike-checks td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-.spike-checks .pass { color: var(--accent); }
-.spike-checks .fail { color: var(--danger); font-weight: 600; }
-.spike-checks-note { color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
-@media (max-width: 480px) { .spike-checks { font-size: 0.8rem; } }
+.figure-checks-scroll { overflow-x: auto; }
+.figure-checks { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+.figure-checks th, .figure-checks td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.figure-checks .pass { color: var(--accent); }
+.figure-checks .fail { color: var(--danger); font-weight: 600; }
+.figure-checks .warn { color: var(--text); font-style: italic; }
 .figure-badge { display: inline-block; margin: 0 0 8px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); font-size: 0.875rem; }
 .figure-height { display: inline-flex; align-items: center; gap: 6px; }
 .figure-height select { font: inherit; padding: 4px 8px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.figure-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; list-style: none; padding: 0; margin: 16px 0; }
+.figure-gallery a, .figure-gallery li { display: flex; flex-direction: column; gap: 6px; color: inherit; }
+.figure-gallery img { width: 100%; height: auto; border-radius: var(--radius); background: #f3f2ee; }
+@media (max-width: 480px) { .figure-checks { font-size: 0.8rem; } }

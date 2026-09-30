@@ -1,0 +1,28 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import FigureChecks from '../../../../components/figure/FigureChecks.astro';
+import FigureFrames from '../../../../components/figure/FigureFrames.astro';
+import FigureViewer from '../../../../components/figure/FigureViewer';
+import { figureMeta } from '../../../../lib/figure/figures';
+import { FIGURES } from '../../../../lib/figure/fixtures';
+import { LOCALES, localizedPath, requireLocale, t } from '../../../../lib/i18n';
+import { withBase } from '../../../../lib/site';
+
+/** Unlisted review page for one figure: the live viewer (with a height picker), the pre-rendered frames and the sweep table. */
+export function getStaticPaths() {
+  return LOCALES.flatMap((lang) => Object.keys(FIGURES).map((id) => ({ params: { lang, id } })));
+}
+const lang = requireLocale(Astro.params.lang);
+const figure = figureMeta(FIGURES[Astro.params.id!]!);
+const images = figure.frames.map((_, i) => withBase(`figures/${figure.id}/frame-${i}.webp`));
+---
+<BaseLayout lang={lang} title={figure.name[lang]} description={`${t(lang, 'devFigures.pageIntro')} ${figure.name[lang]}`} noindex>
+  <p><a href={localizedPath(lang, 'dev/figures')}>{t(lang, 'devFigures.back')}</a></p>
+  <h1>{figure.name[lang]}</h1>
+  <h2>{t(lang, 'devFigures.viewer')}</h2>
+  <FigureViewer client:only="preact" lang={lang} modelUrl={withBase('models/human.glb')} figure={figure} fallbackImages={images} statureChoices={[150, 165, 175, 190, 200]} />
+  <h2>{t(lang, 'devFigures.frames')}</h2>
+  <FigureFrames lang={lang} figure={figure} images={images} />
+  <h2>{t(lang, 'devFigures.checks')}</h2>
+  <FigureChecks lang={lang} figureId={figure.id} />
+</BaseLayout>
