@@ -8,7 +8,24 @@ import type { SmithSquatSolution } from './smithSquat';
 export type Severity = 'error' | 'warn';
 
 export interface Finding {
-  check: 'anchor' | 'feet-flat' | 'bar-on-rail' | 'bar-travel' | 'bone-length' | 'rom' | 'ceiling';
+  check:
+    | 'anchor'
+    | 'feet-flat'
+    | 'bar-on-rail'
+    | 'bar-travel'
+    | 'bone-length'
+    | 'rom'
+    | 'ceiling'
+    /** A body part below the floor. */
+    | 'floor'
+    /** A hanging body touching the floor. */
+    | 'hang-clearance'
+    /** The bench intersecting the rack. */
+    | 'bench-rack'
+    /** A held implement passing through the floor or the equipment. */
+    | 'implement'
+    /** A body part sinking into equipment it does not declare contact with (warn). */
+    | 'body-overlap';
   severity: Severity;
   message: string;
 }
@@ -16,12 +33,13 @@ export interface Finding {
 /**
  * Conservative joint limits in degrees, signed. Flexion is positive; the lower bound catches bending
  * the wrong way: knee and elbow hyperextension (more than a few degrees past straight), hip extension
- * beyond what a standing lifter reaches, and ankle plantarflexion.
+ * past the typical active range (about 10–20°; the hip reads 0 when standing, as the ankle does), and
+ * ankle plantarflexion.
  */
 export const ROM_LIMITS = {
   elbowFlexDeg: { min: -5, max: 145 },
   kneeFlexDeg: { min: -5, max: 150 },
-  hipFlexDeg: { min: -15, max: 130 },
+  hipFlexDeg: { min: -20, max: 130 },
   ankleDorsiflexDeg: { min: -40, max: 40 },
 } as const;
 
@@ -42,6 +60,8 @@ interface RigFrame {
   hinges: Record<'elbow' | 'knee' | 'hip', Record<Side, Hinge>>;
   /** Angle between shank (ankle→knee) and foot (ankle→ball) at rest, per side (deg). */
   restAnkleDeg: Record<Side, number>;
+  /** The hip's sagittal bend at rest (standing), per side: the hip angle's zero. */
+  restHipDeg: Record<Side, number>;
 }
 
 const rigFrames = new WeakMap<SkeletonDef, RigFrame>();
@@ -64,13 +84,15 @@ function rigFrame(sk: SkeletonDef): RigFrame {
   };
   const back = scale(forward, -1);
   const sides = <T>(fn: (side: Side) => T): Record<Side, T> => ({ l: fn('l'), r: fn('r') });
+  const hinges = {
+    elbow: sides((s) => hinge('elbow', `upperarm_${s}`, `upperarm_${s}`, sub(P(`lowerarm_${s}`), P(`upperarm_${s}`)), forward)),
+    knee: sides((s) => hinge('knee', `thigh_${s}`, `thigh_${s}`, sub(P(`calf_${s}`), P(`thigh_${s}`)), back)),
+    hip: sides(() => hinge('hip', 'trunk (spine_03 → pelvis)', 'pelvis', sub(P('pelvis'), P('spine_03')), forward)),
+  };
   f = {
-    hinges: {
-      elbow: sides((s) => hinge('elbow', `upperarm_${s}`, `upperarm_${s}`, sub(P(`lowerarm_${s}`), P(`upperarm_${s}`)), forward)),
-      knee: sides((s) => hinge('knee', `thigh_${s}`, `thigh_${s}`, sub(P(`calf_${s}`), P(`thigh_${s}`)), back)),
-      hip: sides(() => hinge('hip', 'trunk (spine_03 → pelvis)', 'pelvis', sub(P('pelvis'), P('spine_03')), forward)),
-    },
+    hinges,
     restAnkleDeg: sides((s) => angleBetweenDeg(sub(P(`calf_${s}`), P(`foot_${s}`)), sub(P(`ball_${s}`), P(`foot_${s}`)))),
+    restHipDeg: sides((s) => sagittalBendDeg(rest, hinges.hip[s], sub(P('pelvis'), P('spine_03')), sub(P(`calf_${s}`), P(`thigh_${s}`)))),
   };
   rigFrames.set(sk, f);
   return f;
@@ -94,18 +116,32 @@ function signedBendDeg(w: WorldPose, hinge: Hinge, proximal: Vec3, distal: Vec3)
 }
 
 /**
- * Signed joint angles (deg) for one side. Knee, elbow and hip: angle between the two segments, negative
- * when bent the wrong way (hyperextension; hip extension). Ankle: dorsiflexion, the decrease of the
- * shank-to-foot angle from the rest pose (negative = plantarflexion).
+ * The hip's flexion about its hinge only: both segments projected onto the plane across the hinge axis,
+ * so spreading the legs (abduction, a separate movement) does not read as flexion or extension. A thigh
+ * spread straight out along the axis has no flexion to read, so it reads 0 instead of throwing.
+ */
+function sagittalBendDeg(w: WorldPose, hinge: Hinge, proximal: Vec3, distal: Vec3): number {
+  const axis = normalize(rotate(w[hinge.carrier]!.rotation, hinge.axisLocal));
+  const flat = (v: Vec3) => sub(v, scale(axis, dot(v, axis)));
+  const [p, d] = [flat(proximal), flat(distal)];
+  if (length(p) < 1e-6 * length(proximal) || length(d) < 1e-6 * length(distal)) return 0;
+  return signedBendDeg(w, hinge, p, d);
+}
+
+/**
+ * Signed joint angles (deg) for one side. Knee and elbow: angle between the two segments, negative
+ * when bent the wrong way (hyperextension). Hip: the same about the hip's hinge only (legs spread apart
+ * do not count), relative to standing (the rest pose reads 0), negative for extension. Ankle:
+ * dorsiflexion, the decrease of the shank-to-foot angle from the rest pose (negative = plantarflexion).
  */
 export function jointAngles(sk: SkeletonDef, w: WorldPose, side: Side): JointAngles {
-  const { hinges, restAnkleDeg } = rigFrame(sk);
+  const { hinges, restAnkleDeg, restHipDeg } = rigFrame(sk);
   const p = (n: string) => w[`${n}_${side}`]!.position;
   const thigh = sub(p('calf'), p('thigh'));
   return {
     elbowFlexDeg: signedBendDeg(w, hinges.elbow[side], sub(p('lowerarm'), p('upperarm')), sub(p('hand'), p('lowerarm'))),
     kneeFlexDeg: signedBendDeg(w, hinges.knee[side], thigh, sub(p('foot'), p('calf'))),
-    hipFlexDeg: signedBendDeg(w, hinges.hip[side], sub(w.pelvis!.position, w.spine_03!.position), thigh),
+    hipFlexDeg: sagittalBendDeg(w, hinges.hip[side], sub(w.pelvis!.position, w.spine_03!.position), thigh) - restHipDeg[side],
     ankleDorsiflexDeg: restAnkleDeg[side] - angleBetweenDeg(sub(p('calf'), p('foot')), sub(p('ball'), p('foot'))),
   };
 }

@@ -28,8 +28,8 @@ describe('jointAngles', () => {
         expect(a[k], k).toBeGreaterThan(0);
         expect(a[k], k).toBeLessThan(5);
       }
-      // The synthetic trunk line (pelvis → spine_03) leans back 3.6°, so the hanging thigh sits 2.9° behind it.
-      expect(a.hipFlexDeg).toBeCloseTo(-2.88, 2);
+      // The hip reads 0 when standing, whatever the rig's trunk line (the synthetic one leans back 3.6°).
+      expect(a.hipFlexDeg).toBeCloseTo(0, 9);
       expect(a.ankleDorsiflexDeg).toBeCloseTo(0, 9);
     }
   });
