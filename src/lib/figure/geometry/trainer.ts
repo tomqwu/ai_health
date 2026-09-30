@@ -146,7 +146,12 @@ export function buildTrainer(p: TrainerParams, state: TrainerState = {}): Built 
   }
   if (state.spotterArmHeightCm !== undefined) {
     for (const s of [1, -1]) {
-      prims.push(box(`spotter-${s > 0 ? 'left' : 'right'}`, [s * (X - u / 2 - 4), state.spotterArmHeightCm, 0], [5, 5, 2 * Z + 20], 'frame'));
+      const side = s > 0 ? 'left' : 'right';
+      // The arm runs along the inside faces of the uprights, clear of the Smith rail and carriage, hung from a sleeve around each upright.
+      prims.push(box(`spotter-${side}`, [s * (X - u / 2 - 2.5), state.spotterArmHeightCm, 0], [5, 5, 2 * Z + 20], 'frame'));
+      for (const z of [Z, -Z]) {
+        prims.push(box(`spotter-sleeve-${side}-${z > 0 ? 'front' : 'back'}`, [s * (X - 1), state.spotterArmHeightCm, z], [u + 2 + 2, 8, u + 2], 'frame'));
+      }
     }
   }
 

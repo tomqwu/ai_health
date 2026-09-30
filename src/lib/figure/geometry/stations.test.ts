@@ -3,7 +3,7 @@ import { BENCH_ANGLES_DEG, buildBench, benchProblems, ILLUSTRATIVE_BENCH } from 
 import { EQUIPMENT_MODELS } from './models';
 import { aabbOf, type Primitive } from './primitives';
 import { buildScene, ILLUSTRATIVE_SCENE, sceneParamsWith } from './scene';
-import { detached } from './touching';
+import { detached, gap } from './touching';
 import { buildTrainer, ILLUSTRATIVE_TRAINER, pulleyPoint, smithMovingParts, trainerProblems } from './trainer';
 
 const ids = (prims: readonly Primitive[]) => prims.map((p) => p.id);
@@ -12,6 +12,18 @@ const lowest = (prims: readonly Primitive[]) => Math.min(...prims.map((p) => aab
 
 describe('trainer', () => {
   const t = buildTrainer(ILLUSTRATIVE_TRAINER, { barHeightCm: 120, catchHeightCm: 80, holdDown: true, footplate: true, jHookHeightCm: 130, spotterArmHeightCm: 70 });
+  it('mounts the spotter arms on the uprights, clear of the Smith rails and carriage', () => {
+    for (const side of ['left', 'right'] as const) {
+      const find = (id: string) => t.prims.find((p) => p.id === id)!;
+      const arm = find(`spotter-${side}`);
+      for (const end of ['front', 'back']) {
+        const sleeve = find(`spotter-sleeve-${side}-${end}`);
+        expect(gap(arm, sleeve)).toBeLessThanOrEqual(0);
+        expect(gap(sleeve, find(`upright-${end}-${side}`))).toBeLessThanOrEqual(0);
+      }
+      expect(gap(arm, find(`rail-${side}`))).toBeGreaterThan(0.5);
+    }
+  });
   it('has unique ids and stands on the floor', () => {
     expect(unique(t.prims)).toBe(true);
     expect(lowest(t.prims)).toBeGreaterThanOrEqual(0);
