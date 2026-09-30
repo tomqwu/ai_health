@@ -123,20 +123,20 @@ No code. The M2 milestone and the M2 epic (#17) already exist. Issue #40 (pose r
 
 | Task | Issue title | Labels | Milestone | Issue # |
 |---|---|---|---|---|
-| 1 | Content vocabularies, Zod and parameter types | area:fitness, type:feature | M2 Content model & engine | |
-| 2 | Localized engine messages and unit conversion | area:platform, type:feature | M2 Content model & engine | |
-| 3 | Content schemas: equipment, attachments, exercises, templates | area:fitness, type:feature | M2 Content model & engine | |
-| 4 | Catalog builder with cross-reference checks | area:fitness, type:feature | M2 Content model & engine | |
-| 5 | Content collections, generic seed content and build-time checks | area:fitness, type:content | M2 Content model & engine | |
-| 6 | Profile schema, migrations and JSON import/export | area:fitness, type:feature | M2 Content model & engine | |
-| 7 | Profile storage adapter (localStorage, memory, backups) | area:fitness, type:feature | M2 Content model & engine | |
-| 8 | Engine geometry checks with typical defaults | area:fitness, type:feature | M2 Content model & engine | |
-| 9 | Smith squat geometry probe | area:fitness, area:figures, type:feature | M2 Content model & engine | |
-| 10 | Feasibility | area:fitness, type:feature | M2 Content model & engine | |
-| 11 | Time estimates and fit to time | area:fitness, type:feature | M2 Content model & engine | |
-| 12 | Week builder | area:fitness, type:feature | M2 Content model & engine | |
-| 13 | Short session and engine API | area:fitness, type:feature | M2 Content model & engine | |
-| 14 | Synthetic-profile scenarios and docs (M2 exit) | area:fitness, type:docs | M2 Content model & engine | |
+| 1 | Content vocabularies, Zod and parameter types | area:fitness, type:feature | M2 Content model & engine | #48 |
+| 2 | Localized engine messages and unit conversion | area:platform, type:feature | M2 Content model & engine | #49 |
+| 3 | Content schemas: equipment, attachments, exercises, templates | area:fitness, type:feature | M2 Content model & engine | #50 |
+| 4 | Catalog builder with cross-reference checks | area:fitness, type:feature | M2 Content model & engine | #51 |
+| 5 | Content collections, generic seed content and build-time checks | area:fitness, type:content | M2 Content model & engine | #52 |
+| 6 | Profile schema, migrations and JSON import/export | area:fitness, type:feature | M2 Content model & engine | #53 |
+| 7 | Profile storage adapter (localStorage, memory, backups) | area:fitness, type:feature | M2 Content model & engine | #54 |
+| 8 | Engine geometry checks with typical defaults | area:fitness, type:feature | M2 Content model & engine | #55 |
+| 9 | Smith squat geometry probe | area:fitness, area:figures, type:feature | M2 Content model & engine | #56 |
+| 10 | Feasibility | area:fitness, type:feature | M2 Content model & engine | #57 |
+| 11 | Time estimates and fit to time | area:fitness, type:feature | M2 Content model & engine | #58 |
+| 12 | Week builder | area:fitness, type:feature | M2 Content model & engine | #59 |
+| 13 | Short session and engine API | area:fitness, type:feature | M2 Content model & engine | #60 |
+| 14 | Synthetic-profile scenarios and docs (M2 exit) | area:fitness, type:docs | M2 Content model & engine | #61 |
 
 > Task numbers in the table are the plan's task numbers below (Task 1 … Task 14).
 
