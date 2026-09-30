@@ -8,6 +8,10 @@
   --accent: #2f6f5e;
   --accent-contrast: #ffffff;
   --focus: #1f6feb;
+  /* Movement arrow drawn over the 3D stage, whose background is light in both themes: same blue in both (4.14:1 on #f3f2ee). */
+  --figure-arrow: #1f6feb;
+  /* Failure text: 5.44:1 on --surface, 5.21:1 on --bg. */
+  --danger: #c0392b;
   --radius: 12px;
   --maxw: 1080px;
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
@@ -23,6 +27,9 @@
     --accent: #7cc6ad;
     --accent-contrast: #0e1512;
     --focus: #79b8ff;
+    --figure-arrow: #1f6feb;
+    /* 6.48:1 on --surface, 7.12:1 on --bg. */
+    --danger: #ff7b72;
   }
 }
 *, *::before, *::after { box-sizing: border-box; }
