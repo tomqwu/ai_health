@@ -97,7 +97,8 @@ describe('validateSmithSquat catches problems', () => {
   it('flags a low ceiling and passes a normal one', () => {
     const check = (ceilingCm: number) => checkFigureFrame(sk, SMITH_SQUAT, SMITH_SQUAT.frames[0]!, { statureCm: 190, smith: ILLUSTRATIVE_SMITH, ceilingCm });
     expect(check(195).findings.map((f) => f.check)).toContain('ceiling');
-    expect(check(244).findings).toEqual([]);
+    const EIGHT_FT_CM = 8 * 30.48; // a standard 8 ft ceiling
+    expect(check(EIGHT_FT_CM).findings).toEqual([]);
   });
 
   describe('every validator can fire', () => {
