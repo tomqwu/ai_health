@@ -1,5 +1,11 @@
 ---
 import { withBase } from '../../lib/site';
+
+// Dev-only render harness for scripts/render-figures.ts: `astro build` emits no page for it.
+// The route is /render/figure/ (the param is a placeholder so getStaticPaths can return nothing in production).
+export function getStaticPaths() {
+  return import.meta.env.DEV ? [{ params: { figure: 'figure' } }] : [];
+}
 const modelUrl = withBase('models/human.glb');
 ---
 <!doctype html>
@@ -13,14 +19,13 @@ const modelUrl = withBase('models/human.glb');
   <body>
     <canvas id="figure-canvas" data-model-url={modelUrl}></canvas>
     <script>
-      import { mountFigure } from '../../lib/figure/scene3d/figureScene';
-      import { FIGURES } from '../../lib/figure/fixtures';
-
       const W = 900;
       const H = 1200;
       const g = window as unknown as Record<string, unknown>;
 
       async function main() {
+        const { mountFigure } = await import('../../lib/figure/scene3d/figureScene');
+        const { FIGURES } = await import('../../lib/figure/fixtures');
         const params = new URLSearchParams(location.search);
         if (params.has('list')) {
           g.__figureList = Object.values(FIGURES).map((f) => ({ id: f.id, frames: f.frames.length }));
@@ -37,7 +42,8 @@ const modelUrl = withBase('models/human.glb');
         scene.render();
         g.__figureReady = { arrow: scene.arrow(frame), width: W, height: H };
       }
-      main().catch((err) => {
+      // The page is not built for production; the guard also lets the bundler drop this script there.
+      if (import.meta.env.DEV) main().catch((err) => {
         g.__figureError = String(err);
         throw err;
       });
