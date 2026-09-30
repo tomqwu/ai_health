@@ -1,7 +1,7 @@
 ---
 import { REAL_SKELETON as sk } from '../../lib/figure/pose/realSkeleton';
-import { solveSmithSquat } from '../../lib/figure/pose/smithSquat';
-import { jointAngles, validateSmithSquat } from '../../lib/figure/pose/validate';
+import { checkFigureFrame } from '../../lib/figure/pose/checkFigureFrame';
+import { jointAngles } from '../../lib/figure/pose/validate';
 import { ILLUSTRATIVE_SMITH } from '../../lib/figure/geometry/smith';
 import { SMITH_SQUAT } from '../../lib/figure/fixtures/smith-squat';
 import { t } from '../../lib/i18n';
@@ -14,12 +14,12 @@ const deg = (n: number) => `${Math.round(n) || 0}°`;
 const STATURES = [150, 165, 175, 190, 200];
 const rows = STATURES.flatMap((statureCm) =>
   SMITH_SQUAT.frames.map((frame) => {
-    const sol = solveSmithSquat(sk, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
+    const { solution: sol, findings } = checkFigureFrame(sk, SMITH_SQUAT, frame, { statureCm, smith: ILLUSTRATIVE_SMITH });
     const a = jointAngles(sk, sol.world, 'l');
     return {
       statureCm,
       label: frame.label[lang],
-      findings: validateSmithSquat(sk, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: SMITH_SQUAT.barRestOffsetCm }),
+      findings,
       angles: `${t(lang, 'angle.trunk')} ${deg(sol.trunkDeg)} · ${t(lang, 'angle.hip')} ${deg(a.hipFlexDeg)} · ${t(lang, 'angle.knee')} ${deg(a.kneeFlexDeg)} · ${t(lang, 'angle.elbow')} ${deg(a.elbowFlexDeg)}`,
     };
   }),

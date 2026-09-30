@@ -6,6 +6,7 @@ import { SMITH_SQUAT } from '../fixtures/smith-squat';
 import { syntheticSkeleton } from './synthetic';
 import { forwardKinematics, restPose } from './skeleton';
 import { PLAY_ORDER } from './playOrder';
+import { checkFigureFrame } from './checkFigureFrame';
 import { interpolateFrame, solveSmithSquat } from './smithSquat';
 import { carriedBarCenter, jointAngles, validateSmithSquat } from './validate';
 
@@ -39,8 +40,7 @@ describe('solveSmithSquat', () => {
   it.each(STATURES)('produces valid frames at %i cm', (statureCm) => {
     const sk = syntheticSkeleton({ randomRestSeed: 5 });
     for (const frame of SMITH_SQUAT.frames) {
-      const sol = solveSmithSquat(sk, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
-      const findings = validateSmithSquat(sk, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: BAR });
+      const { findings } = checkFigureFrame(sk, SMITH_SQUAT, frame, { statureCm, smith: ILLUSTRATIVE_SMITH });
       expect(findings, `${statureCm} cm / ${frame.id}`).toEqual([]);
     }
   });
@@ -51,8 +51,7 @@ describe('solveSmithSquat', () => {
       const [a, b] = [SMITH_SQUAT.frames[PLAY_ORDER[seg]!]!, SMITH_SQUAT.frames[PLAY_ORDER[seg + 1]!]!];
       for (const t of IN_BETWEEN_T) {
         const frame = interpolateFrame(a, b, t);
-        const sol = solveSmithSquat(sk, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
-        const findings = validateSmithSquat(sk, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: BAR });
+        const { findings } = checkFigureFrame(sk, SMITH_SQUAT, frame, { statureCm, smith: ILLUSTRATIVE_SMITH });
         expect(findings, `${statureCm} cm / ${frame.id}`).toEqual([]);
       }
     }
@@ -87,21 +86,22 @@ describe('validateSmithSquat catches problems', () => {
   const sk = syntheticSkeleton();
   it('flags a narrow grip that over-bends the elbows', () => {
     const narrow = { ...SMITH_SQUAT, grip: { ...SMITH_SQUAT.grip, halfWidthCm: 20 } };
-    const sol = solveSmithSquat(sk, narrow, SMITH_SQUAT.frames[0]!, { statureCm: 190, railZCm: 0 });
-    expect(validateSmithSquat(sk, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: BAR }).map((f) => f.check)).toContain('rom');
+    const { findings } = checkFigureFrame(sk, narrow, SMITH_SQUAT.frames[0]!, { statureCm: 190, smith: ILLUSTRATIVE_SMITH });
+    expect(findings.map((f) => f.check)).toContain('rom');
   });
   it('flags a bottom position below the lower stop', () => {
-    const sol = solveSmithSquat(sk, SMITH_SQUAT, SMITH_SQUAT.frames[1]!, { statureCm: 190, railZCm: 0 });
-    expect(validateSmithSquat(sk, sol, { smith: { ...ILLUSTRATIVE_SMITH, lowestBarHeightCm: 150 }, barRestOffsetCm: BAR }).map((f) => f.check)).toContain('bar-travel');
+    const smith = { ...ILLUSTRATIVE_SMITH, lowestBarHeightCm: 150 };
+    const { findings } = checkFigureFrame(sk, SMITH_SQUAT, SMITH_SQUAT.frames[1]!, { statureCm: 190, smith });
+    expect(findings.map((f) => f.check)).toContain('bar-travel');
   });
   it('flags a low ceiling and passes a normal one', () => {
-    const sol = solveSmithSquat(sk, SMITH_SQUAT, SMITH_SQUAT.frames[0]!, { statureCm: 190, railZCm: 0 });
-    expect(validateSmithSquat(sk, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: BAR, ceilingCm: 195 }).map((f) => f.check)).toContain('ceiling');
-    expect(validateSmithSquat(sk, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: BAR, ceilingCm: 244 })).toEqual([]);
+    const check = (ceilingCm: number) => checkFigureFrame(sk, SMITH_SQUAT, SMITH_SQUAT.frames[0]!, { statureCm: 190, smith: ILLUSTRATIVE_SMITH, ceilingCm });
+    expect(check(195).findings.map((f) => f.check)).toContain('ceiling');
+    expect(check(244).findings).toEqual([]);
   });
 
   describe('every validator can fire', () => {
-    const solve = (i: number) => solveSmithSquat(sk, SMITH_SQUAT, SMITH_SQUAT.frames[i]!, { statureCm: 190, railZCm: ILLUSTRATIVE_SMITH.railZCm });
+    const solve = (i: number) => checkFigureFrame(sk, SMITH_SQUAT, SMITH_SQUAT.frames[i]!, { statureCm: 190, smith: ILLUSTRATIVE_SMITH }).solution;
     const checks = (sol: ReturnType<typeof solve>, smith = ILLUSTRATIVE_SMITH) =>
       validateSmithSquat(sk, sol, { smith, barRestOffsetCm: BAR }).map((f) => f.check);
 

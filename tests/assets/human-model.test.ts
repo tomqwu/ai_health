@@ -10,7 +10,7 @@ import { REAL_SKELETON } from '../../src/lib/figure/pose/realSkeleton';
 import { restPose } from '../../src/lib/figure/pose/skeleton';
 import { PLAY_ORDER } from '../../src/lib/figure/pose/playOrder';
 import { interpolateFrame, solveSmithSquat } from '../../src/lib/figure/pose/smithSquat';
-import { validateSmithSquat } from '../../src/lib/figure/pose/validate';
+import { checkFigureFrame } from '../../src/lib/figure/pose/checkFigureFrame';
 import { ILLUSTRATIVE_SMITH } from '../../src/lib/figure/geometry/smith';
 import { SMITH_SQUAT } from '../../src/lib/figure/fixtures/smith-squat';
 
@@ -49,11 +49,8 @@ describe('committed human model', () => {
   });
   it.each([150, 165, 175, 190, 200])('Smith squat frames are valid on the real rig at %i cm', (statureCm) => {
     for (const frame of SMITH_SQUAT.frames) {
-      const sol = solveSmithSquat(skeleton, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
-      expect(
-        validateSmithSquat(skeleton, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: SMITH_SQUAT.barRestOffsetCm }),
-        `${statureCm} cm / ${frame.id}`,
-      ).toEqual([]);
+      const { findings } = checkFigureFrame(skeleton, SMITH_SQUAT, frame, { statureCm, smith: ILLUSTRATIVE_SMITH });
+      expect(findings, `${statureCm} cm / ${frame.id}`).toEqual([]);
     }
   });
   it.each([150, 165, 175, 190, 200])('Smith squat in-between poses are valid on the real rig at %i cm', (statureCm) => {
@@ -61,11 +58,8 @@ describe('committed human model', () => {
       const [a, b] = [SMITH_SQUAT.frames[PLAY_ORDER[seg]!]!, SMITH_SQUAT.frames[PLAY_ORDER[seg + 1]!]!];
       for (const t of [0.25, 0.5, 0.75]) {
         const frame = interpolateFrame(a, b, t);
-        const sol = solveSmithSquat(skeleton, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
-        expect(
-          validateSmithSquat(skeleton, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: SMITH_SQUAT.barRestOffsetCm }),
-          `${statureCm} cm / ${frame.id}`,
-        ).toEqual([]);
+        const { findings } = checkFigureFrame(skeleton, SMITH_SQUAT, frame, { statureCm, smith: ILLUSTRATIVE_SMITH });
+        expect(findings, `${statureCm} cm / ${frame.id}`).toEqual([]);
       }
     }
   });

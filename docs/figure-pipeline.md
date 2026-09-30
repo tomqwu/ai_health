@@ -14,8 +14,8 @@ How exercise figures are produced. Spec: §8 of `docs/superpowers/specs/2026-09-
 | Layer | Files | What it does |
 |---|---|---|
 | Math | `src/lib/figure/math` | Vectors and quaternions (three.js-compatible semantics) |
-| Pose | `src/lib/figure/pose` | Skeleton from `skeleton.json`, forward kinematics, `PoseBuilder` (aim, two-bone IK), hand curl, the Smith squat solver, validators |
-| Geometry | `src/lib/figure/geometry` | Equipment primitives built from parameters; `ILLUSTRATIVE_SMITH` holds labelled drawing defaults (not measurements of anyone's machine) |
+| Pose | `src/lib/figure/pose` | Skeleton from `skeleton.json`, forward kinematics, `PoseBuilder` (aim with optional roll, two-bone IK), hand curl, the Smith squat solver, validators, `checkFigureFrame` (solve + validate with one set of inputs) |
+| Geometry | `src/lib/figure/geometry` | Equipment primitives built from parameters (`SmithParams`, checked by `smithProblems`); `ILLUSTRATIVE_SMITH` holds labelled drawing defaults (not measurements of anyone's machine) |
 | Fixtures | `src/lib/figure/fixtures` | Exercise data: `SMITH_SQUAT` and the `FIGURES` registry the renderer reads |
 | 3D | `src/lib/figure/scene3d` | Stage (lights, floor, camera), equipment meshes, human loader and `applyPose`, `mountFigure` |
 | Output | `scripts/render-figures.ts`, `src/pages/render/[figure].astro` (dev-only; never built into `dist/`), `src/components/figure/` | Pre-rendered WebP frames; the interactive `FigureViewer.tsx`; the spike page `/<lang>/dev/figure-spike/` |
@@ -39,7 +39,10 @@ npx vitest run tests/assets  # model budget, skeleton sync, and the real-rig Smi
 ## Adding or tuning a pose
 
 1. Frames are data (`src/lib/figure/fixtures/*.ts`): joint targets and anchors, never pixel art. Register a new figure in `fixtures/index.ts` so the renderer finds it.
-2. Run `npx vitest run src/lib/figure tests/assets`. Every frame must pass `validateSmithSquat` at 150–200 cm, on both the synthetic skeleton (`src/lib/figure/pose`) and the real one (`tests/assets`). The validator needs the fixture's `barRestOffsetCm`; its bar-on-rail check re-derives the bar from the posed body (`carriedBarCenter`), so it catches a bar that drifts off the rail.
+2. Run `npx vitest run src/lib/figure tests/assets`. Every frame, and the in-between Play poses, must pass at 150–200 cm on both the synthetic skeleton (`src/lib/figure/pose`) and the real one (`tests/assets`). Check frames through `checkFigureFrame(sk, spec, frame, { statureCm, smith })`: it takes the rail from `smith` and the bar offset from the spec, so the solver and `validateSmithSquat` always see the same inputs. The bar-on-rail check re-derives the bar from the posed body (`carriedBarCenter`), so it catches a bar that drifts off the rail.
+   - Joint limits (`ROM_LIMITS`) are signed ranges. Knee, elbow and hip are measured about each joint's hinge axis, derived from the rig's rest pose and carried by the proximal bone, so hyperextension reads negative. Ankle dorsiflexion is the shank-to-foot angle relative to rest.
+   - Known limitation: the Smith squat solver leaves the humerus at its shortest-swing twist, so its elbows are checked for bend magnitude only (see `validateSmithSquat`). `twoBoneIK`'s `bendSide` rolls the humerus into true hinge flexion, but on this rig (no twist bones) that twists the shirt sleeve.
+   - An arm that may swing far from rest (overhead) needs a roll hint (`aim(..., { up })`, `twoBoneIK(..., { upperRoll, lowerRoll })`); without one its twist is only deterministic, not controlled.
 3. `npm run render:figures` and look at `public/figures/<id>/frame-*.webp`, or open `/<lang>/dev/figure-spike/`, which shows the live viewer, the frames and the validator table for 150–200 cm.
 
 ## Rendering
