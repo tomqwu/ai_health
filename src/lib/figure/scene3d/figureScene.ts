@@ -1,6 +1,6 @@
 import skeletonJson from '../pose/skeleton.json';
 import type { SkeletonDef } from '../pose/skeleton';
-import { solveSmithSquat, type SmithSquatFrame, type SmithSquatSolution, type SmithSquatSpec } from '../pose/smithSquat';
+import { interpolateFrame, solveSmithSquat, type SmithSquatFrame, type SmithSquatSolution, type SmithSquatSpec } from '../pose/smithSquat';
 import { buildSmith, ILLUSTRATIVE_SMITH } from '../geometry/smith';
 import { barArrow } from '../overlay';
 import { buildEquipment, setBarHeight } from './equipment';
@@ -68,16 +68,7 @@ export async function mountFigure(
       const n = spec.frames.length;
       const valid = (i: number) => Number.isInteger(i) && i >= 0 && i < n;
       if (!valid(a) || !valid(b)) throw new RangeError(`showBetween(${a}, ${b}): frame indices must be integers in 0..${n - 1}`);
-      const fa = spec.frames[a]!;
-      const fb = spec.frames[b]!;
-      return show(
-        solve({
-          ...fa,
-          id: `${fa.id}>${fb.id}`,
-          shankDeg: fa.shankDeg + (fb.shankDeg - fa.shankDeg) * t,
-          thighDeg: fa.thighDeg + (fb.thighDeg - fa.thighDeg) * t,
-        }),
-      );
+      return show(solve(interpolateFrame(spec.frames[a]!, spec.frames[b]!, t)));
     },
     arrow: (i) => {
       const a = barArrow(spec.frames[i]?.arrow, keyframes[i]!.barCenter, smith);

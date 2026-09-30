@@ -8,7 +8,8 @@ import { extractSkeleton } from '../../scripts/lib/extractSkeleton';
 import skeletonJson from '../../src/lib/figure/pose/skeleton.json';
 import { rotate } from '../../src/lib/figure/math/quat';
 import { restPose, type SkeletonDef } from '../../src/lib/figure/pose/skeleton';
-import { solveSmithSquat } from '../../src/lib/figure/pose/smithSquat';
+import { PLAY_ORDER } from '../../src/lib/figure/pose/playOrder';
+import { interpolateFrame, solveSmithSquat } from '../../src/lib/figure/pose/smithSquat';
 import { validateSmithSquat } from '../../src/lib/figure/pose/validate';
 import { ILLUSTRATIVE_SMITH } from '../../src/lib/figure/geometry/smith';
 import { SMITH_SQUAT } from '../../src/lib/figure/fixtures/smith-squat';
@@ -53,6 +54,19 @@ describe('committed human model', () => {
         validateSmithSquat(skeleton, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: SMITH_SQUAT.barRestOffsetCm }),
         `${statureCm} cm / ${frame.id}`,
       ).toEqual([]);
+    }
+  });
+  it.each([150, 165, 175, 190, 200])('Smith squat in-between poses are valid on the real rig at %i cm', (statureCm) => {
+    for (let seg = 0; seg < PLAY_ORDER.length - 1; seg++) {
+      const [a, b] = [SMITH_SQUAT.frames[PLAY_ORDER[seg]!]!, SMITH_SQUAT.frames[PLAY_ORDER[seg + 1]!]!];
+      for (const t of [0.25, 0.5, 0.75]) {
+        const frame = interpolateFrame(a, b, t);
+        const sol = solveSmithSquat(skeleton, SMITH_SQUAT, frame, { statureCm, railZCm: ILLUSTRATIVE_SMITH.railZCm });
+        expect(
+          validateSmithSquat(skeleton, sol, { smith: ILLUSTRATIVE_SMITH, barRestOffsetCm: SMITH_SQUAT.barRestOffsetCm }),
+          `${statureCm} cm / ${frame.id}`,
+        ).toEqual([]);
+      }
     }
   });
 });

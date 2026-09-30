@@ -52,6 +52,19 @@ export interface SmithSquatSolution {
   targets: Record<AnchorBone, Vec3>;
 }
 
+/**
+ * An in-between frame at `t` (0..1) from `a` to `b`: lerps the leg angles and keeps `a`'s other
+ * fields (label, cue, arrow) with a derived id. Solve it like any keyframe.
+ */
+export function interpolateFrame(a: SmithSquatFrame, b: SmithSquatFrame, t: number): SmithSquatFrame {
+  return {
+    ...a,
+    id: `${a.id}>${b.id}@${Number(t.toFixed(3))}`,
+    shankDeg: a.shankDeg + (b.shankDeg - a.shankDeg) * t,
+    thighDeg: a.thighDeg + (b.thighDeg - a.thighDeg) * t,
+  };
+}
+
 const mirror = (v: Vec3, sx: number): Vec3 => [sx * v[0], v[1], v[2]];
 
 export function solveSmithSquat(

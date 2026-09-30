@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { arrowPaths } from '../../lib/figure/arrow';
+import { PLAY_ORDER } from '../../lib/figure/pose/playOrder';
 import type { SmithSquatSpec } from '../../lib/figure/pose/smithSquat';
 import type { FigureScene } from '../../lib/figure/scene3d/figureScene';
 import { t } from '../../lib/i18n';
@@ -24,7 +25,6 @@ function hasWebgl(): boolean {
   return Boolean(gl);
 }
 
-const PLAY_ORDER = [0, 1, 2, 0];
 const SEGMENT_MS = 1200;
 
 export default function FigureViewer({ lang, modelUrl, spec, fallbackImages }: Props) {
