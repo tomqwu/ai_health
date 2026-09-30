@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { add, distance, scale, sub } from '../math/vec3';
+import { type Vec3, add, distance, scale, sub } from '../math/vec3';
 import { angleBetweenQuatsDeg, conjugate, degToRad, fromAxisAngle, multiply } from '../math/quat';
 import { ILLUSTRATIVE_SMITH } from '../geometry/smith';
 import { SMITH_SQUAT } from '../fixtures/smith-squat';
@@ -139,6 +139,26 @@ describe('validateSmithSquat catches problems', () => {
       const sol = solve(0);
       expect(checks(sol, { ...ILLUSTRATIVE_SMITH, highestBarHeightCm: 100 })).toContain('bar-travel');
     });
+  });
+});
+
+describe('solver regression', () => {
+  // World positions recorded before the #40 pose-robustness changes (aim roll control, atomic twoBoneIK).
+  // The squat must not move: any change here is a behaviour change, not a refactor.
+  const RECORDED: Record<string, Vec3> = {
+    calf_l: [17.815417269558075, 47.062876002986926, 23.344871329062382],
+    foot_r: [-16.000000000000007, 6.799999999999983, 8.000000000000039],
+    lowerarm_l: [35.70313340269873, 76.66247333720503, -8.56607433267957],
+    hand_r: [-41.99999999999998, 101.12919433214495, -4],
+    middle_03_l: [46.24677742935014, 112.61688115508574, -4.034206447695061],
+    thumb_03_r: [-48.89859007309662, 108.48965307359757, 1.274878556389086],
+    head: [0, 112.3040456874949, 14.661553763092678],
+  };
+  it('keeps the bottom frame where it was (175 cm, seed 5)', () => {
+    const sol = solveSmithSquat(syntheticSkeleton({ randomRestSeed: 5 }), SMITH_SQUAT, SMITH_SQUAT.frames[1]!, { statureCm: 175, railZCm: 0 });
+    for (const [bone, want] of Object.entries(RECORDED)) {
+      expect(distance(sol.world[bone]!.position, want), bone).toBeLessThan(1e-6);
+    }
   });
 });
 
