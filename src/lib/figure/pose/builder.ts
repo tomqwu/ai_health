@@ -1,4 +1,4 @@
-import { type Vec3, add, cross, dot, length, normalize, scale, sub, X_AXIS, Z_AXIS } from '../math/vec3';
+import { type Vec3, add, cross, dot, length, normalize, scale, sub, X_AXIS, Y_AXIS, Z_AXIS } from '../math/vec3';
 import { type Quat, conjugate, fromAxisAngle, fromUnitVectors, IDENTITY, multiply, normalizeQuat, rotate } from '../math/quat';
 import { type BoneDef, type SkeletonDef, type WorldPose, boneMap, forwardKinematics } from './skeleton';
 
@@ -52,6 +52,7 @@ export class PoseBuilder {
   readonly local: Record<string, Quat>;
   rootPosition: Vec3;
   private readonly defs: Map<string, BoneDef>;
+  private restWorldCache?: WorldPose;
 
   constructor(
     readonly sk: SkeletonDef,
@@ -149,23 +150,71 @@ export class PoseBuilder {
   }
 
   /**
-   * Analytic two-bone IK: upper -> lower -> end, bending the middle joint toward `pole`.
-   * Returns where the end joint landed (differs from `target` only when out of reach).
+   * Analytic two-bone IK over the chain upper → lower → end (each the parent of the next), bending the
+   * middle joint toward `pole`. Returns where the end joint landed (differs from `target` only when
+   * out of reach).
+   *
+   * `target` is a world point. `pole` is a world **direction**, not a point: the middle joint moves off
+   * the root→target axis toward the side `pole` points to (only its part perpendicular to that axis
+   * counts; its length does not matter). When `pole` is parallel to the axis it carries no side, so the
+   * joint bends toward the body's forward instead (+Z in the rest pose, turned with the upper bone's
+   * parent), or toward the body's up (+Y, turned likewise) when the axis itself runs forward.
+   *
+   * `opts.upperRoll` / `opts.lowerRoll` fix each bone's twist as in {@link aim}; joint positions do not
+   * depend on them.
+   *
+   * Every input is validated and both rotations are computed before any bone changes, so a call that
+   * throws leaves the builder as it was.
    */
-  twoBoneIK(upper: string, lower: string, end: string, target: Vec3, pole: Vec3): Vec3 {
-    const a = this.world()[upper]!.position;
-    const l1 = length(this.def(lower).restLocalT) * this.scaleFactor;
-    const l2 = length(this.def(end).restLocalT) * this.scaleFactor;
+  twoBoneIK(
+    upper: string,
+    lower: string,
+    end: string,
+    target: Vec3,
+    pole: Vec3,
+    opts: { upperRoll?: AimRoll; lowerRoll?: AimRoll } = {},
+  ): Vec3 {
+    const chain = `twoBoneIK(${upper} → ${lower} → ${end})`;
+    const du = this.def(upper);
+    const dl = this.def(lower);
+    const de = this.def(end);
+    if (dl.parent !== upper || de.parent !== lower) {
+      throw new Error(`${chain}: not a chain; each bone must be the parent of the next (${lower}'s parent is ${dl.parent}, ${end}'s is ${de.parent})`);
+    }
+    if (!isFiniteVec(target)) throw new Error(`${chain}: target is not a finite point (${String(target)})`);
+    if (!isFiniteVec(pole) || length(pole) === 0) {
+      throw new Error(`${chain}: pole must be a finite, non-zero direction (got ${String(pole)})`);
+    }
+    const w = this.world();
+    const a = w[upper]!.position;
+    const l1 = length(dl.restLocalT) * this.scaleFactor;
+    const l2 = length(de.restLocalT) * this.scaleFactor;
+    if (!(l1 > ZERO_CM && l2 > ZERO_CM)) throw new Error(`${chain}: a bone in the chain has zero length`);
     const toTarget = sub(target, a);
+    if (length(toTarget) <= ZERO_CM) throw new Error(`${chain}: target is at the ${upper} joint, so there is no direction to reach in`);
+
     const d = Math.min(Math.max(length(toTarget), Math.abs(l1 - l2) + 1e-6), l1 + l2 - 1e-6);
     const dir = normalize(toTarget);
     const along = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
     const h = Math.sqrt(Math.max(0, l1 * l1 - along * along));
-    const poleOrtho = normalize(sub(pole, scale(dir, dot(pole, dir))));
-    const mid = add(add(a, scale(dir, along)), scale(poleOrtho, h));
+    const parentRot = du.parent ? w[du.parent]!.rotation : IDENTITY;
+    const bodyTurn = du.parent ? multiply(parentRot, conjugate(this.restWorld()[du.parent]!.rotation)) : IDENTITY;
+    const bend =
+      perpendicularUnit(pole, dir) ?? perpendicularUnit(rotate(bodyTurn, Z_AXIS), dir) ?? perpendicularUnit(rotate(bodyTurn, Y_AXIS), dir)!;
+    const mid = add(add(a, scale(dir, along)), scale(bend, h));
     const reached = add(a, scale(dir, d));
-    this.aim(upper, lower, mid);
-    this.aim(lower, end, reached);
+
+    // Solve both bones before touching either, so a throw cannot leave a half-applied pose.
+    const upperWorld = this.aimRotation(upper, lower, parentRot, a, mid, opts.upperRoll);
+    const lowerHead = add(a, rotate(upperWorld, scale(dl.restLocalT, this.scaleFactor)));
+    const lowerWorld = this.aimRotation(lower, end, upperWorld, lowerHead, reached, opts.lowerRoll);
+    this.local[upper] = normalizeQuat(multiply(conjugate(parentRot), upperWorld));
+    this.local[lower] = normalizeQuat(multiply(conjugate(this.world()[upper]!.rotation), lowerWorld));
     return reached;
+  }
+
+  /** World rotations of the rest pose (independent of scale), computed once. */
+  private restWorld(): WorldPose {
+    return (this.restWorldCache ??= forwardKinematics(this.sk, { local: {} }, 1));
   }
 }

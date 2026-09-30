@@ -201,3 +201,93 @@ describe('aim roll control and the opposite direction', () => {
     );
   });
 });
+
+describe('twoBoneIK degenerate inputs', () => {
+  const CHAIN = ['thigh_l', 'calf_l', 'foot_l'] as const;
+  const snapshot = (b: PoseBuilder) => JSON.stringify({ local: b.local, root: b.rootPosition });
+  /** Unit direction of the knee's offset from the hip→ankle axis. */
+  const bendOf = (b: PoseBuilder): Vec3 => {
+    const w = b.world();
+    const a = w.thigh_l!.position;
+    const axis = normalize(sub(w.foot_l!.position, a));
+    const k = sub(w.calf_l!.position, a);
+    return normalize(sub(k, scale(axis, dot(k, axis))));
+  };
+
+  it('bends toward the body\'s forward when the pole is parallel to the hip→target axis, without noise', () => {
+    const knees: Vec3[] = [];
+    for (const seed of SEEDS) {
+      const results = ([[0, -1, 0], [0, 1, 0], [1e-13, -1, 0], [0, -1, -1e-13], [0, -5, 0]] as Vec3[]).map((pole) => {
+        const b = new PoseBuilder(syntheticSkeleton({ randomRestSeed: seed }), 1);
+        const target = add(b.world().thigh_l!.position, [0, -70, 0]);
+        b.twoBoneIK(...CHAIN, target, pole);
+        expect(distance(b.world().foot_l!.position, target)).toBeLessThan(1e-6);
+        expect(dot(bendOf(b), [0, 0, 1])).toBeGreaterThan(1 - 1e-9);
+        return b.world().calf_l!.position;
+      });
+      for (const k of results) expect(distance(k, results[0]!)).toBeLessThan(1e-9);
+      knees.push(results[0]!);
+    }
+    for (const k of knees) expect(distance(k, knees[0]!)).toBeLessThan(1e-6);
+  });
+
+  it('the fallback follows the body when it turns, and uses the body\'s up when the axis runs forward', () => {
+    const turned = new PoseBuilder(syntheticSkeleton({ randomRestSeed: 2 }), 1);
+    turned.rotateWorld('pelvis', [0, 1, 0], degToRad(90));
+    turned.twoBoneIK(...CHAIN, add(turned.world().thigh_l!.position, [0, -70, 0]), [0, -1, 0]);
+    expect(dot(bendOf(turned), [1, 0, 0])).toBeGreaterThan(1 - 1e-9);
+
+    const forward = new PoseBuilder(syntheticSkeleton({ randomRestSeed: 2 }), 1);
+    forward.twoBoneIK(...CHAIN, add(forward.world().thigh_l!.position, [0, 0, 70]), [0, 0, 1]);
+    expect(dot(bendOf(forward), [0, 1, 0])).toBeGreaterThan(1 - 1e-9);
+  });
+
+  it('names the chain and the problem for a zero pole, a target at the root and a non-finite input', () => {
+    const b = new PoseBuilder(syntheticSkeleton(), 1);
+    const a = b.world().thigh_l!.position;
+    expect(() => b.twoBoneIK(...CHAIN, add(a, [0, -60, 10]), [0, 0, 0])).toThrow(/twoBoneIK\(thigh_l → calf_l → foot_l\): pole/);
+    expect(() => b.twoBoneIK(...CHAIN, a, [0, 0, 1])).toThrow(/twoBoneIK\(thigh_l → calf_l → foot_l\): target/);
+    expect(() => b.twoBoneIK(...CHAIN, [0, Number.NaN, 0], [0, 0, 1])).toThrow(/twoBoneIK\(thigh_l → calf_l → foot_l\): target/);
+    expect(() => b.twoBoneIK(...CHAIN, add(a, [0, -60, 10]), [0, Infinity, 0])).toThrow(/twoBoneIK\(thigh_l → calf_l → foot_l\): pole/);
+  });
+
+  it('leaves the builder unchanged when it throws', () => {
+    const b = new PoseBuilder(syntheticSkeleton({ randomRestSeed: 3 }), 1);
+    b.rotateWorld('pelvis', [0, 1, 0], 0.3);
+    const a = b.world().thigh_l!.position;
+    const before = snapshot(b);
+    // Not a chain: hand_l is not calf_l's child. The upper bone must not be aimed before this is noticed.
+    expect(() => b.twoBoneIK('thigh_l', 'calf_l', 'hand_l', add(a, [0, -60, 10]), [0, 0, 1])).toThrow(/thigh_l → calf_l → hand_l/);
+    expect(snapshot(b)).toBe(before);
+    expect(() => b.twoBoneIK(...CHAIN, add(a, [0, -60, 10]), [0, 0, 0])).toThrow();
+    expect(snapshot(b)).toBe(before);
+    // A roll hint for the lower bone that is parallel to where it will point: only known after the upper bone is solved.
+    const target = add(a, [0, -60, 10]);
+    const probe = new PoseBuilder(b.sk, 1);
+    Object.assign(probe.local, b.local);
+    probe.twoBoneIK(...CHAIN, target, [0, 0, 1]);
+    const pw = probe.world();
+    const lowerDir = sub(pw.foot_l!.position, pw.calf_l!.position);
+    expect(() => b.twoBoneIK(...CHAIN, target, [0, 0, 1], { lowerRoll: { up: lowerDir } })).toThrow(/aim\(calf_l → foot_l\)/);
+    expect(snapshot(b)).toBe(before);
+  });
+
+  it('passes roll hints through to both bones without moving the joints', () => {
+    const plain = new PoseBuilder(syntheticSkeleton({ randomRestSeed: 11 }), 1);
+    const rolled = new PoseBuilder(syntheticSkeleton({ randomRestSeed: 11 }), 1);
+    const target = add(plain.world().upperarm_l!.position, [10, 55, 15]);
+    plain.twoBoneIK('upperarm_l', 'lowerarm_l', 'hand_l', target, [0.5, -1, -0.5]);
+    rolled.twoBoneIK('upperarm_l', 'lowerarm_l', 'hand_l', target, [0.5, -1, -0.5], {
+      upperRoll: { up: [0, 0, 1] },
+      lowerRoll: { up: [0, 0, 1] },
+    });
+    const [wp, wr] = [plain.world(), rolled.world()];
+    for (const bone of ['lowerarm_l', 'hand_l']) expect(distance(wp[bone]!.position, wr[bone]!.position)).toBeLessThan(1e-9);
+    const r0 = restPose(rolled.sk, 1).upperarm_l!;
+    const d0 = normalize(sub(restPose(rolled.sk, 1).lowerarm_l!.position, r0.position));
+    const sideLocal = rotate(conjugate(r0.rotation), normalize(sub([0, 0, 1], scale(d0, d0[2]))));
+    const d1 = normalize(sub(wr.lowerarm_l!.position, wr.upperarm_l!.position));
+    const want = normalize(sub([0, 0, 1], scale(d1, d1[2])));
+    expect(dot(rotate(wr.upperarm_l!.rotation, sideLocal), want)).toBeGreaterThan(1 - 1e-9);
+  });
+});
