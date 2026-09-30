@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { add, angleBetweenDeg, cross, distance, dot, lerp, midpoint, normalize, scale, sub, X_AXIS, Y_AXIS, Z_AXIS, type Vec3 } from './vec3';
-import { angleBetweenQuatsDeg, conjugate, degToRad, fromAxisAngle, fromUnitVectors, IDENTITY, multiply, rotate, slerp, type Quat } from './quat';
+import { angleBetweenQuatsDeg, conjugate, degToRad, fromAxisAngle, fromTwoPairs, fromUnitVectors, IDENTITY, multiply, rotate, slerp, type Quat } from './quat';
 
 const close = (a: readonly number[], b: readonly number[], digits = 9) => {
   expect(a.length).toBe(b.length);
@@ -168,5 +168,22 @@ describe('angleBetweenQuatsDeg', () => {
   });
   it('measures a known rotation', () => {
     expect(angleBetweenQuatsDeg(IDENTITY, fromAxisAngle([1, 2, 3], degToRad(70)))).toBeCloseTo(70);
+  });
+});
+
+describe('fromTwoPairs', () => {
+  it('maps the first direction exactly and turns the side as close as it can', () => {
+    const q = fromTwoPairs([0, 0, 1], [0, -1, 0], [1, 0, 0], [0, 0, -1]);
+    close(rotate(q, [0, 0, 1]), [1, 0, 0]);
+    close(rotate(q, [0, -1, 0]), [0, 0, -1]);
+  });
+  it('uses only the part of the side across the direction', () => {
+    const q = fromTwoPairs(X_AXIS, Y_AXIS, Z_AXIS, [0, 1, 5]);
+    close(rotate(q, X_AXIS), Z_AXIS);
+    close(rotate(q, Y_AXIS), Y_AXIS);
+  });
+  it('throws when a side is parallel to its direction', () => {
+    expect(() => fromTwoPairs(X_AXIS, [2, 0, 0], Y_AXIS, Z_AXIS)).toThrow(/parallel/);
+    expect(() => fromTwoPairs(X_AXIS, Y_AXIS, Z_AXIS, [0, 0, -3])).toThrow(/parallel/);
   });
 });

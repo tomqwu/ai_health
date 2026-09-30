@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { aabbOf, aabbOverlap, type Aabb, type Primitive } from './primitives';
+import { fromAxisAngle } from '../math/quat';
+import { aabbOf, aabbOverlap, type Aabb, penetrationDepth, type Primitive, signedDistance } from './primitives';
 
 const box = (center: [number, number, number], size: [number, number, number]): Primitive => ({
   kind: 'box',
@@ -55,5 +56,33 @@ describe('aabbOverlap', () => {
   });
   it('is false when only faces touch', () => {
     expect(aabbOverlap(unit, { min: [1, 0, 0], max: [2, 1, 1] })).toBe(false);
+  });
+});
+
+describe('rotated boxes, capped spheres and distances', () => {
+  const tilted: Primitive = { kind: 'box', id: 't', center: [0, 0, 0], size: [2, 2, 2], surface: 'pad', rotation: fromAxisAngle([0, 0, 1], Math.PI / 4) };
+  const dome: Primitive = { kind: 'sphere', id: 'd', center: [0, 0, 0], radius: 10, surface: 'dome', capBelowY: 4 };
+
+  it('bounds a rotated box by its corners', () => {
+    const a = aabbOf(tilted);
+    expect(a.max[0]).toBeCloseTo(Math.SQRT2);
+    expect(a.max[2]).toBeCloseTo(1);
+  });
+  it('bounds a capped sphere from its cut', () => {
+    expect(aabbOf(dome).min[1]).toBe(4);
+    expect(aabbOf(dome).max[1]).toBe(10);
+  });
+  it('gives signed distances: negative inside, positive outside', () => {
+    expect(signedDistance(box([0, 0, 0], [2, 2, 2]), [0, 0, 0])).toBeCloseTo(-1);
+    expect(signedDistance(box([0, 0, 0], [2, 2, 2]), [3, 0, 0])).toBeCloseTo(2);
+    expect(signedDistance(tilted, [Math.SQRT2 + 1, 0, 0])).toBeCloseTo(1);
+    expect(signedDistance(cyl([0, 0, 0], [0, 10, 0], 2), [5, 5, 0])).toBeCloseTo(3);
+    expect(signedDistance(cyl([0, 0, 0], [0, 10, 0], 2), [0, 13, 0])).toBeCloseTo(3);
+    expect(signedDistance(dome, [0, 2, 0])).toBeCloseTo(2);
+    expect(signedDistance(dome, [0, 12, 0])).toBeCloseTo(2);
+  });
+  it('measures how deep one primitive reaches into another', () => {
+    expect(penetrationDepth(box([0, 0, 0], [2, 2, 2]), box([1.5, 0, 0], [2, 2, 2]))).toBeCloseTo(0.5);
+    expect(penetrationDepth(box([0, 0, 0], [2, 2, 2]), box([5, 0, 0], [2, 2, 2]))).toBe(0);
   });
 });
